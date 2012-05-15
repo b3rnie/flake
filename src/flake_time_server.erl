@@ -36,23 +36,6 @@ start_link(Args) ->
 get_last_timestamp() ->
     gen_server:call(?MODULE, get_last_timestamp).
 
-%% write the current time stamp to disk
-%% {ok,Timestamp=int()} | {error,Reason}
-write_timestamp(Table) ->
-    TS = flake_util:now_in_ms(),
-    ok = dets:insert(Table,{last_timestamp,TS}),
-    {ok,TS}.
-
-%% read the timestamp from the given file. will write the current timestamp to disk if the file does not exist
-%% {ok,Timestamp=int()} | {error,Reason}
-read_timestamp(Table) ->
-    case dets:lookup(Table,last_timestamp) of
-	[{last_timestamp,TS}] when is_integer(TS) ->
-	    {ok,TS};
-	_ ->
-	    write_timestamp(Table)
-    end.
-
 get_clock_state() ->
         TimestampPath = flake:get_config_value(timestamp_path, "/tmp/flake-timestamp-dets"),
     AllowableDowntime = flake:get_config_value(allowable_downtime, 0),

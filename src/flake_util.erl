@@ -14,90 +14,78 @@
 %%% limitations under the License.
 %%%
 
+%%%_* Module declaration ===============================================
 -module (flake_util).
--author ('Dietrich Featherston <d@boundary.com>').
+-compile(no_auto_import, [integer_to_list/2]).
 
--export ([
-	  as_list/2,
-	  get_if_hw_int/1,
-	  hw_addr_to_int/1,
-         , now_in_ms/0
+%%%_* Exports ==========================================================
+-export([ mk_id/3
+        , now_in_ms/0
+        , get_mac_addr/1
+        , mac_addr_to_int/1
+        , read_timestamp/1
+        , write_timestamp/2
 
-	  curr_time_millis/0,
-	  gen_id/3
-	 ]).
+	, as_list/2,
+        ]).
 
--include_lib("eunit/include/eunit.hrl").
+%%%_* Code =============================================================
+%%%_ * API -------------------------------------------------------------
 
-%% get the mac/hardware address of the given interface as a 48-bit integer
-get_if_hw_int(undefined) ->
-    {error, if_not_found};
-get_if_hw_int(IfName) ->
-    {ok, IfAddrs} = inet:getifaddrs(),
-    IfProps = proplists:get_value(IfName, IfAddrs),
-    case IfProps of
-	undefined ->
-	    {error, if_not_found};
-	_ ->
-	    HwAddr = proplists:get_value(hwaddr, IfProps),
-	    {ok, hw_addr_to_int(HwAddr)}
-    end.
+%% @doc mac addr as a 6 element/byte array
+get_mac_addr(Interface) ->
+  case lists:keyfind(Interface, 1, inet:getifaddrs()) of
+    {Interface, Props} ->
+      case lists:keyfind(hwaddr, 1, Props) of
+        {hwaddr, Mac} -> {ok, Mac};
+        false         -> {error, mac_not_found}
+      end;
+    false ->
+      {error, interface_not_found}
+  end.
 
-%% convert an array of 6 bytes into a 48-bit integer
-hw_addr_to_int(HwAddr) ->
-    <<WorkerId:48/integer>> = erlang:list_to_binary(HwAddr),
-    WorkerId.
+mac_addr_to_int(Mac) ->
+  <<MacInt:48/integer>> = erlang:list_to_binary(HwAddr),
+  MacInt.
 
 now_in_ms() ->
   {Ms, S, Us} = erlang:now(),
   1000000000*Ms + S*1000 + erlang:trunc(Us/1000).
 
-gen_id(Time,WorkerId,Sequence) ->
-    <<Time:64/integer, WorkerId:48/integer, Sequence:16/integer>>.
+mk_id(Ts, Mac, Seqno) ->
+  <<Ts:64/integer, Mac:48/integer, Seqno:16/integer>>.
 
 %%
 %% n.b. - unique_id_62/0 and friends pulled from riak
 %%
-
-%% @spec integer_to_list(Integer :: integer(), Base :: integer()) ->
-%%          string()
 %% @doc Convert an integer to its string representation in the given
 %%      base.  Bases 2-62 are supported.
-as_list(I, 10) ->
-    erlang:integer_to_list(I);
-as_list(I, Base)
-  when is_integer(I),
-       is_integer(Base),
+integer_to_list(I, Base)
+  when erlang:is_integer(I),
+       erlang:is_integer(Base),
+       Base >= 2,
+       Base =< 36 ->
+  erlang:integer_to_list(I, Base);
+integer_to_list(I, Base)
+  when erlang:is_integer(I),
+       erlang:is_integer(Base),
        Base >= 2,
        Base =< 1+$Z-$A+10+1+$z-$a -> %% 62
-  if
-      I < 0 ->
-	  [$-|as_list(-I, Base, [])];
-      true ->
-	  as_list(I, Base, [])
-  end;
-as_list(I, Base) ->
-    erlang:error(badarg, [I, Base]).
+  case I < 0 of
+    true  -> [$-|as_list(-I, Base, [])];
+    false -> as_list(I, Base, [])
+  end.
 
-%% @spec integer_to_list(integer(), integer(), stringing()) -> string()
-as_list(I0, Base, R0) ->
-    D = I0 rem Base,
-    I1 = I0 div Base,
-    R1 =
-	if
-	    D >= 36 ->
-		[D-36+$a|R0];
-	    D >= 10 ->
-		[D-10+$A|R0];
-	    true ->
-		[D+$0|R0]
-	end,
-    if
-      I1 =:= 0 ->
-	    R1;
-	true ->
-	    as_list(I1, Base, R1)
-    end.
+integer_to_list(I0, Base, R0) ->
+  R1 = case I0 rem Base of
+         D when D >= 36 -> [D-36+$a|R0];
+         D when D >= 10 -> [D-10+$A|R0];
+         D              -> [D+$0   |R0]
+       end,
+  case I0 div Base of
+    0  -> R1;
+    I1 -> integer_to_list(I1, Base, R1)
+  end.
 
 write_timestamp(File, Ts) ->
   file:write_file(File, erlang:term_to_binary(Ts)).
@@ -122,17 +110,21 @@ timestamp_test() ->
   {ok, Ts}        = read_timestamp(?tmpfile),
   ok.
 
-flake_test() ->
-    TS = flake_util:now_in_ms(),
-    Worker = flake_util:hw_addr_to_int(lists:seq(1, 6)),
-    Flake = flake_util:gen_id(TS, Worker, 0),
-    <<Time:64/integer, WorkerId:48/integer, Sequence:16/integer>> = Flake,
-    ?assert(?debugVal(Time) =:= TS),
-    ?assert(?debugVal(Worker) =:= WorkerId),
-    ?assert(?debugVal(Sequence) =:= 0),
-    <<FlakeInt:128/integer>> = Flake,
-    ?debugVal(flake_util:as_list(FlakeInt, 62)),
-    ok.
+mk_id_test() ->
+  Ts    = now_in_ms(),
+  Mac   = hw_addr_to_int(lists:seq(1, 6)),
+  Seqno = 0,
+  Flake = mk_id(Ts, Mac, Seqno),
+  <<Ts:64/integer, Mac:48/integer, Sno:16/integer>> = Flake,
+  <<FlakeInt:128/integer>>                          = Flake,
+  _ = as_list(FlakeInt, 62),
+  ok.
+
+integer_to_list_test() ->
+  R0 = integer_to_list(5000, 32, []),
+  R1 = erlang:integer_to_list(5000, 32),
+  R0 = R1,
+  ok.
 
 -else.
 -endif.

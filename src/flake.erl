@@ -20,19 +20,16 @@
 %%%_* Exports ==========================================================
 -export([ id/0
         , id/1
-        , get_config_value/2
         ]).
 
 %%%_* Code =============================================================
 %%%_ * API -------------------------------------------------------------
-id()     -> flake_server:id().
-id(Base) -> flake_server:id(Base).
 
-get_config_value(Key, Default) ->
-    case application:get_env(flake, Key) of
-	{ok, Value} -> Value;
-	_ -> Default
-    end.
+%% @doc id() -> binary()
+id() -> flake_server:id().
+
+%% @doc id(Base::integer()) -> list()
+id(Base) -> flake_server:id(Base).
 
 %%%_* Tests ============================================================
 -ifdef(TEST).

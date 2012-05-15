@@ -28,14 +28,7 @@ start_link() ->
   supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init(_Args) ->
-  If = flake:get_config_value(interface, "eth0"),
-  {ok,WorkerId} = flake_util:get_if_hw_int(If),
-  Config = [{worker_id, WorkerId}],
-
-  TimeConf = [{table, TimestampTable},
-              {interval, 1000}
-             ],
-  RestartStrategy = {one_for_one, 10, 10},
+  RestartStrategy = {one_for_all, 0, 1},
   Kids = [ {flake_time_server, {flake_time_server, start_link, [TimeConf]},
             permanent, 5000, worker, [flake_time_server]}
          , {flake_server, {flake_server, start_link, [Config]},

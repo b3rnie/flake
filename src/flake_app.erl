@@ -15,8 +15,8 @@
 %%%
 
 %%%_* Module declaration ===============================================
--module (flake_app).
--behaviour (application).
+-module(flake_app).
+-behaviour(application).
 
 %%%_* Exports ==========================================================
 -export([ start/2
@@ -25,10 +25,7 @@
 
 %%%_* Code =============================================================
 start(normal, _Args) ->
-    case flake_time_server:get_clock_state() of
-        ok           -> flake_sup:start_link();
-        {error, Rsn} -> {error, Rsn}
-    end.
+  flake_sup:start_link().
 
 stop(_S) ->
     ok.

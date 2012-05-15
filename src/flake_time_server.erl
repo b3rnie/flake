@@ -27,69 +27,44 @@
 %%%_ * Types -----------------------------------------------------------
 -record(s, { file
            , tref
-           , interval
+           , last_ts
            }).
 %%%_ * API -------------------------------------------------------------
 start_link(Args) ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
 
-get_last_timestamp() ->
-    gen_server:call(?MODULE, get_last_timestamp).
-
-get_clock_state() ->
-        TimestampPath = flake:get_config_value(timestamp_path, "/tmp/flake-timestamp-dets"),
-    AllowableDowntime = flake:get_config_value(allowable_downtime, 0),
-
-    {ok, TimestampTable} =
-	dets:open_file(timestamp_table,[
-					{estimated_no_objects, 10},
-					{type, set},
-					{file, TimestampPath}
-				       ]),
-
-    {ok,TS} = persistent_timer:read_timestamp(TimestampTable),
-    ?debugVal(TS),
-    Now = flake_util:curr_time_millis(),
-    ?debugVal(Now),
-    TimeSinceLastRun = Now - TS,
-
-    %% fail startup if
-    %% 1) the clock time last recorded is later than the current time
-    %% 2) the last recorded time is more than N ms in the past to prevent
-    %%    generating future ids in the event that the system clock is set to some point far in the future
-    check_for_clock_error(Now >= TS, TimeSinceLastRun < AllowableDowntime),
-
-    error_logger:info_msg("saving timestamps to ~p every 1s~n", [TimestampPath]).
-
-
-
-check_for_clock_error(true,true) ->
-    ok;
-check_for_clock_error(false,_) ->
-    error_logger:error_msg("system running backwards, failing startup of snowflake service~n"),
-    exit(clock_running_backwards);
-check_for_clock_error(_,false) ->
-    error_logger:error_msg("system clock too far advanced, failing startup of snowflake service~n"),
-    exit(clock_advanced).
+get_last_ts() ->
+  gen_server:call(?MODULE, get_last_ts).
 
 %%%_ * gen_server callbacks --------------------------------------------
 init(Args) ->
-  F = fun({file, File}, S)         -> S#s{file = File};
-         ({interval, Interval}, S) -> S#s{interval = Interval};
-         ({_K, _V}, S)             -> S
-      end,
-  S = lists:foldl(F, #s{}, Args),
-  {ok, TRef} = timer:send_interval(S#s.interval, save),
-  {ok, S#s{tref = TRef}}.
+  {ok, File}     = application:get_env(timestamp_file),
+  {ok, Downtime} = application:get_env(allowable_downtime),
+  Now            = flake_util:now_in_ms(),
+  case flake_util:read_timestamp(File) of
+    {ok, Ts} ->
+      if Ts > Now            -> {stop, clock_running_backwards};
+         Now - Ts > Downtime -> {stop, clock_advanced};
+         true                -> {ok, do_init(File, Now)}
+      end;
+    {error, enoent} -> {ok, do_init(File, Now)};
+    {error, Rsn}    -> {stop, Rsn}
+  end.
 
-handle_call(get_last_timestamp, _From, #state{table=Table} = S) ->
-  {reply, read_timestamp(Table), S}.
+handle_call(get_last_ts, _From, #s{last_ts = Ts} = S) ->
+  {reply, Ts, S}.
 
-handle_cast(_Msg, S) -> {noreply, S}.
+handle_cast(_Msg, S) ->
+  {noreply, S}.
 
-handle_info(save, #s{file = File} = S) ->
-  ok = flake_util:write_timestamp(File),
-  {noreply, S};
+handle_info(save, #s{ last_ts = Ts
+                    , file    = File} = S) ->
+  Now = flake_util:now_in_ms(),
+  case Now >= Ts of
+    true  -> flake_util:write_timestamp(File, Now),
+             {noreply, S#s{last_ts = Now}};
+    false -> {stop, clock_running_backwards, S}
+  end.
 
 handle_info(_Info, S) ->
   {noreply, S}.
@@ -100,6 +75,16 @@ terminate(_Rsn, #s{tref = TRef}) ->
 
 code_change(_OldVsn, S, _Extra) ->
   {ok, S}.
+
+%%%_ * Internals -------------------------------------------------------
+do_init(File, Interval, Now) ->
+  flake_util:write_timestamp(File, Now),
+  {ok, Interval} = application:get_env(interval),
+  {ok, TRef} = timer:send_interval(Interval, save),
+  #s{ file    = File
+    , tref    = TRef
+    , last_ts = Now
+    }.
 
 %%%_* Tests ============================================================
 -ifdef(TEST).

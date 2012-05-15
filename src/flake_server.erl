@@ -59,7 +59,7 @@ id(Base) ->
 init(_Args) ->
   {ok, Interface} = application:get_env(interface),
   {ok, MacAddr    = flake_util:get_max_addr(Interface),
-  {ok, #s{ last_ts  = flake_util:now_in_ms()
+  {ok, #s{ last_ts  = flake_time_server:get_last_ts(),
          , mac_addr = flake_util:mac_addr_to_int(Mac)
          , seqno    = 0
          }}.

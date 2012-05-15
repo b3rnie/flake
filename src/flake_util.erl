@@ -21,6 +21,8 @@
 	  as_list/2,
 	  get_if_hw_int/1,
 	  hw_addr_to_int/1,
+         , now_in_ms/0
+
 	  curr_time_millis/0,
 	  gen_id/3
 	 ]).
@@ -46,9 +48,9 @@ hw_addr_to_int(HwAddr) ->
     <<WorkerId:48/integer>> = erlang:list_to_binary(HwAddr),
     WorkerId.
 
-curr_time_millis() ->
-    {MegaSec,Sec, MicroSec} = erlang:now(),
-    1000000000*MegaSec + Sec*1000 + erlang:trunc(MicroSec/1000).
+now_in_ms() ->
+  {Ms, S, Us} = erlang:now(),
+  1000000000*Ms + S*1000 + erlang:trunc(Us/1000).
 
 gen_id(Time,WorkerId,Sequence) ->
     <<Time:64/integer, WorkerId:48/integer, Sequence:16/integer>>.
@@ -67,7 +69,7 @@ as_list(I, Base)
   when is_integer(I),
        is_integer(Base),
        Base >= 2,
-       Base =< 1+$Z-$A+10+1+$z-$a ->
+       Base =< 1+$Z-$A+10+1+$z-$a -> %% 62
   if
       I < 0 ->
 	  [$-|as_list(-I, Base, [])];
@@ -96,14 +98,32 @@ as_list(I0, Base, R0) ->
 	true ->
 	    as_list(I1, Base, R1)
     end.
-  
-  
-%% ----------------------------------------------------------
-%% tests
-%% ----------------------------------------------------------
+
+write_timestamp(File, Ts) ->
+  file:write_file(File, erlang:term_to_binary(Ts)).
+
+read_timestamp(File) ->
+  case file:read_file(File) of
+    {ok, Bin}       -> {ok, erlang:binary_to_term(Bin)};
+    {error, enoent} -> {error, enoent};
+    {error, Rsn}    -> {error, Rsn}
+  end.
+
+%%%_* Tests ============================================================
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+-define(tmpfile, "/tmp/flake.tmp").
+timestamp_test() ->
+  file:delete(?tmpfile),
+  Ts = now_in_ms(),
+  {error, enoent} = read_timestamp(?tmpfile),
+  ok              = write_timestamp(?tmpfile, Ts),
+  {ok, Ts}        = read_timestamp(?tmpfile),
+  ok.
 
 flake_test() ->
-    TS = flake_util:curr_time_millis(),
+    TS = flake_util:now_in_ms(),
     Worker = flake_util:hw_addr_to_int(lists:seq(1, 6)),
     Flake = flake_util:gen_id(TS, Worker, 0),
     <<Time:64/integer, WorkerId:48/integer, Sequence:16/integer>> = Flake,
@@ -113,3 +133,12 @@ flake_test() ->
     <<FlakeInt:128/integer>> = Flake,
     ?debugVal(flake_util:as_list(FlakeInt, 62)),
     ok.
+
+-else.
+-endif.
+
+%%%_* Emacs ============================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:

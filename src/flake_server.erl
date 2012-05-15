@@ -51,7 +51,7 @@ id(Base) -> gen_server:call(?MODULE, {get, Base}).
 
 %%%_ * gen_server callbacks --------------------------------------------
 init([{worker_id, WorkerId}]) ->
-  {ok, #s{ max_time=flake_util:curr_time_millis()
+  {ok, #s{ max_time=flake_util:now_in_ms()
          , worker_id=WorkerId
          , sequence=0}}.
 
@@ -59,7 +59,7 @@ handle_call(get, _From, #s{ max_time = MaxTime
                           , worker_id = WorkerId
                           , sequence = Sequence
                           } = S0) ->
-    {Resp, S1} = get(flake_util:curr_time_millis(), MaxTime, WorkerId,
+    {Resp, S1} = get(flake_util:now_in_ms(), MaxTime, WorkerId,
                      Sequence, S0),
     {reply, Resp, S1};
 
@@ -68,7 +68,7 @@ handle_call({get, Base}, _From, #s{ max_time = MaxTime
                                   , worker_id = WorkerId
                                   , sequence  = Sequence
                                   } = S0) ->
-    {Resp, S1} = get(flake_util:curr_time_millis(), MaxTime, WorkerId,
+    {Resp, S1} = get(flake_util:now_in_ms(), MaxTime, WorkerId,
                      Sequence, S0),
     case Resp of
 	{ok, <<IntId:128/integer>>} ->
@@ -100,3 +100,16 @@ get(CurrTime,MaxTime,WorkerId,_,S) when CurrTime > MaxTime ->
 %% clock is running backwards
 get(CurrTime, MaxTime, _WorkerId, _Sequence, S) when MaxTime > CurrTime ->
   {{error, clock_running_backwards}, S}.
+
+%%%_* Tests ============================================================
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+-else.
+-endif.
+
+%%%_* Emacs ============================================================
+%%% Local Variables:
+%%% allout-layout: t
+%%% erlang-indent-level: 2
+%%% End:

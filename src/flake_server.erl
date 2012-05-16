@@ -57,21 +57,25 @@ id(Base) ->
 
 %%%_ * gen_server callbacks --------------------------------------------
 init(_Args) ->
-  {ok, Interface} = application:get_env(interface),
-  {ok, MacAddr    = flake_util:get_max_addr(Interface),
-  {ok, #s{ last_ts  = flake_time_server:get_last_ts(),
-         , mac_addr = flake_util:mac_addr_to_int(Mac)
-         , seqno    = 0
-         }}.
+  case application:get_env(flake, interface) of
+    {ok, Interface} ->
+      {ok, MacAddr} = flake_util:get_mac_addr(Interface),
+      {ok, #s{ last_ts  = flake_time_server:get_last_ts()
+             , mac_addr = flake_util:mac_addr_to_int(MacAddr)
+             , seqno    = 0
+             }};
+    undefined ->
+      {stop, no_interface_configured}
+  end.
 
-handle_call({get, Format}, _From, #s{ last_ts  = LastMs
-                                    , mac_addr = MacAddr
-                                    , seqno    = Seqno0
-                                    } = S0) ->
-  case next(LastMs, flake_util:now_in_ms(), Seqno0) of
-    {ok, {NowMs, Seqno}}  -> S   = S0#s{last_ts = NowMs, seqno = Seqno},
+handle_call(get, _From, #s{ last_ts  = LastTs
+                          , mac_addr = MacAddr
+                          , seqno    = Seqno0
+                          } = S0) ->
+  case next(LastTs, flake_util:now_in_ms(), Seqno0) of
+    {ok, {Ts, Seqno}}     -> S   = S0#s{last_ts = Ts, seqno = Seqno},
                              Res = flake_util:mk_id(Ts, MacAddr, Seqno),
-                             {reply, Res, S};
+                             {reply, {ok, Res}, S};
     {error, out_of_seqno} -> {reply, {error, out_of_seqno}, S0};
     {error, Rsn}          -> {stop, Rsn, S0}
   end.
@@ -90,18 +94,35 @@ code_change(_OldVsn, S, _Extra) ->
   {ok, S}.
 
 %%%_ * Internals -------------------------------------------------------
-next(Old, Old, Seqno) when Seqno >= 65536 -> %% 16 bits
+next(OldTs, OldTs, Seqno) when Seqno >= 65535 -> %% 16 bits
   {error, out_of_seqno};
-next(Old, Old, Seqno) ->
-  {ok, {Old, Seqno+1}};
-next(Old, New, _Seqno) when Old < New ->
-  {ok, {New, 0}};
-next(Old, New, _Seqno) when Old > New ->
+next(OldTs, OldTs, Seqno) ->
+  {ok, {OldTs, Seqno+1}};
+next(OldTs, NewTs, _Seqno) when OldTs < NewTs ->
+  {ok, {NewTs, 0}};
+next(OldTs, NewTs, _Seqno) when OldTs > NewTs ->
   {error, clock_running_backwards}.
 
 %%%_* Tests ============================================================
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
+next_test() ->
+  Ts0 = flake_util:now_in_ms(),
+  Ts1 = Ts0 + 1,
+  {ok, {Ts0, 1}} = next(Ts0, Ts0, 0),
+  {ok, {Ts0, 2}} = next(Ts0, Ts0, 1),
+  {ok, {Ts1, 0}} = next(Ts0, Ts1, 0),
+  {ok, {Ts1, 0}} = next(Ts0, Ts1, 1),
+  {error, clock_running_backwards} = next(Ts1, Ts0, 0),
+  {error, clock_running_backwards} = next(Ts1, Ts0, 1),
+  ok.
+
+next_out_of_seqno_test() ->
+  Ts = flake_util:now_in_ms(),
+  <<Int:16/integer>> = <<16#FF, 16#FF>>,
+  {error, out_of_seqno} = next(Ts, Ts, Int),
+  ok.
 
 -else.
 -endif.

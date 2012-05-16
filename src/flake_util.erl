@@ -16,7 +16,7 @@
 
 %%%_* Module declaration ===============================================
 -module (flake_util).
--compile(no_auto_import, [integer_to_list/2]).
+-compile({no_auto_import, [integer_to_list/2]}).
 
 %%%_* Exports ==========================================================
 -export([ mk_id/3
@@ -25,8 +25,7 @@
         , mac_addr_to_int/1
         , read_timestamp/1
         , write_timestamp/2
-
-	, as_list/2,
+        , integer_to_list/2
         ]).
 
 %%%_* Code =============================================================
@@ -34,7 +33,8 @@
 
 %% @doc mac addr as a 6 element/byte array
 get_mac_addr(Interface) ->
-  case lists:keyfind(Interface, 1, inet:getifaddrs()) of
+  {ok, Addrs} = inet:getifaddrs(),
+  case lists:keyfind(Interface, 1, Addrs) of
     {Interface, Props} ->
       case lists:keyfind(hwaddr, 1, Props) of
         {hwaddr, Mac} -> {ok, Mac};
@@ -44,8 +44,8 @@ get_mac_addr(Interface) ->
       {error, interface_not_found}
   end.
 
-mac_addr_to_int(Mac) ->
-  <<MacInt:48/integer>> = erlang:list_to_binary(HwAddr),
+mac_addr_to_int(MacAddr) ->
+  <<MacInt:48/integer>> = erlang:list_to_binary(MacAddr),
   MacInt.
 
 now_in_ms() ->
@@ -72,8 +72,8 @@ integer_to_list(I, Base)
        Base >= 2,
        Base =< 1+$Z-$A+10+1+$z-$a -> %% 62
   case I < 0 of
-    true  -> [$-|as_list(-I, Base, [])];
-    false -> as_list(I, Base, [])
+    true  -> [$-|integer_to_list(-I, Base, [])];
+    false -> integer_to_list(I, Base, [])
   end.
 
 integer_to_list(I0, Base, R0) ->
@@ -102,25 +102,27 @@ read_timestamp(File) ->
 -include_lib("eunit/include/eunit.hrl").
 
 -define(tmpfile, "/tmp/flake.tmp").
-timestamp_test() ->
+read_write_timestamp_test() ->
   file:delete(?tmpfile),
   Ts = now_in_ms(),
   {error, enoent} = read_timestamp(?tmpfile),
   ok              = write_timestamp(?tmpfile, Ts),
   {ok, Ts}        = read_timestamp(?tmpfile),
+  file:delete(?tmpfile),
   ok.
 
 mk_id_test() ->
   Ts    = now_in_ms(),
-  Mac   = hw_addr_to_int(lists:seq(1, 6)),
+  Mac   = mac_addr_to_int(lists:seq(1, 6)),
   Seqno = 0,
   Flake = mk_id(Ts, Mac, Seqno),
-  <<Ts:64/integer, Mac:48/integer, Sno:16/integer>> = Flake,
-  <<FlakeInt:128/integer>>                          = Flake,
-  _ = as_list(FlakeInt, 62),
+  <<Ts:64/integer, Mac:48/integer, _Seqno:16/integer>> = Flake,
+  <<FlakeInt:128/integer>>                             = Flake,
+  _ = integer_to_list(FlakeInt, 62),
   ok.
 
 integer_to_list_test() ->
+  %% TODO: use proper on base 2 - 32
   R0 = integer_to_list(5000, 32, []),
   R1 = erlang:integer_to_list(5000, 32),
   R0 = R1,

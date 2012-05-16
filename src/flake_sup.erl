@@ -51,9 +51,9 @@ init(_Args) ->
   %% No restarts ensures that duplicates cannot be handed from
   %% a running system.
   RestartStrategy = {one_for_all, 0, 1},
-  Kids = [ {flake_time_server, {flake_time_server, start_link, [TimeConf]},
+  Kids = [ {flake_time_server, {flake_time_server, start_link, [[]]},
             permanent, 5000, worker, [flake_time_server]}
-         , {flake_server, {flake_server, start_link, [Config]},
+         , {flake_server, {flake_server, start_link, [[]]},
             permanent, 5000, worker, [flake_server]}
          ],
   {ok, {RestartStrategy, Kids}}.

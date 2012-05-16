@@ -34,6 +34,25 @@ id(Base) -> flake_server:id(Base).
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
+generate_base_48_test() ->
+  ok = application:start(flake, permanent),
+  {ok, IdStr0} = flake:id(48),
+  {ok, IdStr1} = flake:id(48),
+  application:stop(flake),
+  ok.
+
+generate_10k_ids_test() ->
+  application:start(flake, permanent),
+  generate(10000),
+  application:stop(flake),
+  ok.
+
+generate(0) -> ok;
+generate(N) ->
+  {ok, <<Int:128/integer>>} = flake:id(),
+  erlang:is_integer(Int),
+  generate(N-1).
+
 -else.
 -endif.
 

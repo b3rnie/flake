@@ -10,9 +10,7 @@
 
 %%%_* Exports ==========================================================
 -export([ start_link/1
-        , write_timestamp/1
-        , read_timestamp/1
-        , get_last_timestamp/1
+        , get_last_ts/0
         ]).
 
 -export([ init/1
@@ -37,9 +35,9 @@ get_last_ts() ->
   gen_server:call(?MODULE, get_last_ts).
 
 %%%_ * gen_server callbacks --------------------------------------------
-init(Args) ->
-  {ok, File}     = application:get_env(timestamp_file),
-  {ok, Downtime} = application:get_env(allowable_downtime),
+init(_Args) ->
+  {ok, File}     = application:get_env(flake, timestamp_file),
+  {ok, Downtime} = application:get_env(flake, allowable_downtime),
   Now            = flake_util:now_in_ms(),
   case flake_util:read_timestamp(File) of
     {ok, Ts} ->
@@ -64,7 +62,7 @@ handle_info(save, #s{ last_ts = Ts
     true  -> flake_util:write_timestamp(File, Now),
              {noreply, S#s{last_ts = Now}};
     false -> {stop, clock_running_backwards, S}
-  end.
+  end;
 
 handle_info(_Info, S) ->
   {noreply, S}.
@@ -77,9 +75,9 @@ code_change(_OldVsn, S, _Extra) ->
   {ok, S}.
 
 %%%_ * Internals -------------------------------------------------------
-do_init(File, Interval, Now) ->
+do_init(File, Now) ->
   flake_util:write_timestamp(File, Now),
-  {ok, Interval} = application:get_env(interval),
+  {ok, Interval} = application:get_env(flake, interval),
   {ok, TRef} = timer:send_interval(Interval, save),
   #s{ file    = File
     , tref    = TRef
@@ -89,6 +87,35 @@ do_init(File, Interval, Now) ->
 %%%_* Tests ============================================================
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
+clock_backwards_test() ->
+  File = load_and_write(flake_util:now_in_ms() + 5000),
+  %% startup will fail, dont want to kill test..
+  erlang:process_flag(trap_exit, true),
+  {error, clock_running_backwards} = flake_time_server:start_link([]),
+  file:delete(File),
+  ok.
+
+clock_advanced_test() ->
+  application:load(flake),
+  {ok, Downtime} = application:get_env(flake, allowable_downtime),
+  File = load_and_write(flake_util:now_in_ms() - Downtime - 1),
+  erlang:process_flag(trap_exit, true),
+  {error, clock_advanced} = flake_time_server:start_link([]),
+  file:delete(File).
+
+load_and_write(Ts) ->
+  application:load(flake),
+  {ok, File} = application:get_env(flake, timestamp_file),
+  flake_util:write_timestamp(File, Ts),
+  File.
+
+periodic_save_test() ->
+  File = load_and_write(flake_util:now_in_ms()),
+  {ok, Pid} = flake_time_server:start_link([]),
+  timer:sleep(2000),
+  exit(normal, Pid),
+  ok.
 
 -else.
 -endif.

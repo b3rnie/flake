@@ -6,11 +6,10 @@
   {registered, []},
   {applications, [
                   kernel,
-                  stdlib,
-                  crypto
+                  stdlib
                  ]},
   {mod, { flake_app, []}},
-  {env, [ {interface,          "en0"}
+  {env, [ {interface,          "eth0"}
         , {timestamp_file,     "/tmp/flake-timestamp"}
         , {allowable_downtime, 2592000000}
         , {interval,           1000}

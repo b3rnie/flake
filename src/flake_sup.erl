@@ -28,6 +28,28 @@ start_link() ->
   supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init(_Args) ->
+  %% 1. always generate unique id's
+  %% 2. be fast and efficient
+  %%
+  %% These conflict with eachother when we need to handle restarts.
+  %% In order to never generate duplicates we need to persist
+  %% timestamps used to generate flake id's to disk which obviously
+  %% is a big performance hit.
+  %%
+  %% flake_time_server persists the current time to disk with regular
+  %% (configurable) intervals.
+  %% ----------|----------|----------|--------       flake_time_server
+  %%         write      write      write
+  %% -----|-----|---|---|-----|-----|-----|          flake_server
+  %%    req   req req  req  req   req   req
+  %%
+  %% flake_server is going to use timestamps not persisted to disk
+  %% when calculating id's so there might exist a gap where duplicate
+  %% id's can be generated if the application is restarted in
+  %% a time shorter than the persist interval.
+  %%
+  %% No restarts ensures that duplicates cannot be handed from
+  %% a running system.
   RestartStrategy = {one_for_all, 0, 1},
   Kids = [ {flake_time_server, {flake_time_server, start_link, [TimeConf]},
             permanent, 5000, worker, [flake_time_server]}

@@ -114,7 +114,7 @@ periodic_save_test() ->
   File = load_and_write(flake_util:now_in_ms()),
   {ok, Pid} = flake_time_server:start_link([]),
   timer:sleep(2000),
-  exit(normal, Pid),
+  exit(Pid, normal),
   ok.
 
 -else.

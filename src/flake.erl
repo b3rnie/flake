@@ -14,6 +14,8 @@
 %%% limitations under the License.
 %%%
 
+%%% Refactored 2012 / Bjorn Jensen-Urstad
+
 %%%_* Module declaration ===============================================
 -module (flake).
 

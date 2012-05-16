@@ -13,12 +13,13 @@
 %%% See the License for the specific language governing permissions and
 %%% limitations under the License.
 %%%
+%%% Refactored 2012 / Bjorn Jensen-Urstad
 
 %%%_* Module declaration ===============================================
 -module (flake_util).
 -compile({no_auto_import, [integer_to_list/2]}).
 
-%%%_* Exports ==========================================================
+%%%_* Exports =========================================================
 -export([ mk_id/3
         , now_in_ms/0
         , get_mac_addr/1

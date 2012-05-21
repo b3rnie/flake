@@ -35,8 +35,7 @@
 
 %%%_* Code =============================================================
 %%%_ * Types -----------------------------------------------------------
--record(s, { tref
-           , last_ts  :: integer()
+-record(s, { last_ts  :: integer()
            , mac_addr :: integer()
            , seqno    :: integer()
            }).

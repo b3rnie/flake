@@ -86,8 +86,7 @@ handle_cast(_Msg, S) ->
 handle_info(_Info, S) ->
   {noreply, S}.
 
-terminate(_Rsn, #s{tref = TRef}) ->
-  timer:cancel(TRef),
+terminate(_Rsn, _S) ->
   ok.
 
 code_change(_OldVsn, S, _Extra) ->

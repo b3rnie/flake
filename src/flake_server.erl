@@ -47,6 +47,7 @@ start_link(Args) ->
 id() ->
   gen_server:call(?MODULE, get).
 
+%% @doc generate a new snowflake id base 2-62
 id(Base) ->
   case gen_server:call(?MODULE, get) of
     {ok, <<Id:128/integer>>} ->
@@ -119,8 +120,7 @@ next_test() ->
 
 next_out_of_seqno_test() ->
   Ts = flake_util:now_in_ms(),
-  <<Int:16/integer>> = <<16#FF, 16#FF>>,
-  {error, out_of_seqno} = next(Ts, Ts, Int),
+  {error, out_of_seqno} = next(Ts, Ts, 16#FFFF),
   ok.
 
 -else.

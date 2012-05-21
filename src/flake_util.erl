@@ -93,9 +93,8 @@ write_timestamp(File, Ts) ->
 
 read_timestamp(File) ->
   case file:read_file(File) of
-    {ok, Bin}       -> {ok, erlang:binary_to_term(Bin)};
-    {error, enoent} -> {error, enoent};
-    {error, Rsn}    -> {error, Rsn}
+    {ok, Bin}    -> {ok, erlang:binary_to_term(Bin)};
+    {error, Rsn} -> {error, Rsn}
   end.
 
 %%%_* Tests ============================================================
@@ -103,7 +102,7 @@ read_timestamp(File) ->
 -include_lib("eunit/include/eunit.hrl").
 
 -define(tmpfile, "/tmp/flake.tmp").
-read_write_timestamp_test() ->
+rw_timestamp_test() ->
   file:delete(?tmpfile),
   Ts = now_in_ms(),
   {error, enoent} = read_timestamp(?tmpfile),
@@ -117,17 +116,26 @@ mk_id_test() ->
   Mac   = mac_addr_to_int(lists:seq(1, 6)),
   Seqno = 0,
   Flake = mk_id(Ts, Mac, Seqno),
-  <<Ts:64/integer, Mac:48/integer, _Seqno:16/integer>> = Flake,
-  <<FlakeInt:128/integer>>                             = Flake,
-  _ = integer_to_list(FlakeInt, 62),
+  <<Ts:64/integer, Mac:48/integer, Seqno:16/integer>> = Flake,
   ok.
 
-integer_to_list_test() ->
-  %% TODO: use proper on base 2 - 32
-  R0 = integer_to_list(5000, 32, []),
-  R1 = erlang:integer_to_list(5000, 32),
-  R0 = R1,
-  ok.
+integer_to_list_base2_32_test() ->
+  %% TODO: Use proper for this
+  lists:foreach(fun(N) ->
+                    %% Random base between 2 and 32
+                    Base = random:uniform(31) + 1,
+                    I    = case N rem 2 of
+                             0 ->  random:uniform(16#FFFF);
+                             1 -> -random:uniform(16#FFFF)
+                           end,
+                    R0 =
+                      case I < 0 of
+                        true  -> [$-|integer_to_list(-I, Base, [])];
+                        false -> integer_to_list(I, Base, [])
+                      end,
+                    R1 = erlang:integer_to_list(I, Base),
+                    ?assertEqual(R0, R1)
+                end, lists:seq(1, 500)).
 
 -else.
 -endif.

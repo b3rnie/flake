@@ -38,12 +38,15 @@ get_last_ts() ->
 init(_Args) ->
   {ok, File}     = application:get_env(flake, timestamp_file),
   {ok, Downtime} = application:get_env(flake, allowable_downtime),
+  {ok, Interval} = application:get_env(flake, interval),
   Now            = flake_util:now_in_ms(),
   case flake_util:read_timestamp(File) of
     {ok, Ts} ->
-      if Ts > Now            -> {stop, clock_running_backwards};
-         Now - Ts > Downtime -> {stop, clock_advanced};
-         true                -> {ok, do_init(File, Now)}
+      if Ts > Now             -> {stop, clock_running_backwards};
+         Now - Ts > Downtime  -> {stop, clock_advanced};
+         Ts + Interval >= Now -> timer:sleep(Ts + Interval - Now + 1),
+                                 {ok, do_init(File, Now)};
+         true                 -> {ok, do_init(File, Now)}
       end;
     {error, enoent} -> {ok, do_init(File, Now)};
     {error, Rsn}    -> {stop, Rsn}

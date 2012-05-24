@@ -37,21 +37,20 @@ init(_Args) ->
   %% timestamps used to generate flake id's to disk which obviously
   %% is a big performance hit.
   %%
-  %% flake_time_server persists the current time to disk with regular
+  %% flake_server persists the current time to disk with regular
   %% (configurable) intervals.
-  %% ----------|----------|----------|--------       flake_time_server
+  %% ----------|----------|----------|--------       persists
   %%         write      write      write
-  %% -----|-----|---|---|-----|-----|-----|          flake_server
+  %% -----|-----|---|---|-----|-----|-----|          requests
   %%    req   req req  req  req   req   req
   %%
-  %% flake_server is going to use timestamps not persisted to disk
+  %% flake_server is using timestamps not persisted to disk
   %% when calculating id's so there might exist a gap where duplicate
-  %% id's can be generated if the application is restarted in
-  %% a time shorter than the persist interval.
-  %%
-  %% No restarts ensures that duplicates cannot be handed from
-  %% a running system.
-  RestartStrategy = {one_for_all, 0, 1},
+  %% id's can be generated if flake_server is restarted in a shorter
+  %% time than the persist interval and the clock is stopped
+  %% or running backwards. This is handled by delaying
+  %% startup to guarantee unique id's.
+  RestartStrategy = {one_for_all, 4, 10},
   Kids = [ {flake_time_server, {flake_time_server, start_link, [[]]},
             permanent, 5000, worker, [flake_time_server]}
          , {flake_server, {flake_server, start_link, [[]]},

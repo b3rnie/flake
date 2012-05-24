@@ -22,7 +22,6 @@
 %%%_* Exports ==========================================================
 -export([ start_link/1
         , id/0
-        , id/1
         ]).
 
 -export([ init/1
@@ -35,51 +34,55 @@
 
 %%%_* Code =============================================================
 %%%_ * Types -----------------------------------------------------------
--record(s, { last_ts  :: integer()
-           , mac_addr :: integer()
-           , seqno    :: integer()
+-record(s, { interval              :: integer()
+           , last_persisted_ts     :: integer()
+           , last_used_ts          :: integer()
+           , last_used_seqno   = 0 :: integer()
+           , mac_addr              :: binary()
            }).
 %%%_ * API -------------------------------------------------------------
 start_link(Args) ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
 
-%% @doc generate a new snowflake id
-id() ->
-  gen_server:call(?MODULE, get).
+set_last_persisted_ts(Ts) ->
+  gen_server:cast(?MODULE, {set_last_persisted_ts, Ts}).
 
-%% @doc generate a new snowflake id base 2-62
-id(Base) ->
-  case gen_server:call(?MODULE, get) of
-    {ok, <<Id:128/integer>>} ->
-      {ok, flake_util:integer_to_list(Id, Base)};
-    {error, Rsn} ->
-      {error, Rsn}
-  end.
+%% @doc generate a new snowflake id
+id() -> gen_server:call(?MODULE, get).
 
 %%%_ * gen_server callbacks --------------------------------------------
 init(_Args) ->
-  case application:get_env(flake, interface) of
-    {ok, Interface} ->
-      {ok, MacAddr} = flake_util:get_mac_addr(Interface),
-      {ok, #s{ last_ts  = flake_time_server:get_last_ts()
-             , mac_addr = flake_util:mac_addr_to_int(MacAddr)
-             , seqno    = 0
-             }};
-    undefined ->
-      {stop, no_interface_configured}
+  case flake_util:get_env([interface, interval]) of
+    {ok, [Interface, Interval]} ->
+      case flake_util:get_mac_addr(Interface) of
+        {ok, MacAddr} -> {ok, #s{ last_used_ts = flake_util:now_in_ms()
+                                , interval = Interval
+                                , mac_addr = MacAddr
+                                }};
+        {error, Rsn}  -> {stop, Rsn}
+      end;
+    {error, Rsn} -> {stop, Rsn}
   end.
 
-handle_call(get, _From, #s{ last_ts  = LastTs
-                          , mac_addr = MacAddr
-                          , seqno    = Seqno0
+%% TODO: Ensure that ts used to generate id is not more than
+%% 2 x interval ahead and let flake_time_server
+%% delay startup until 2 x interval has passed.
+handle_call(get, _From, #s{ last_used_ts    = LastTs
+                          , last_used_seqno = LastSeqno
+                          , mac_addr        = MacAddr
                           } = S0) ->
-  case next(LastTs, flake_util:now_in_ms(), Seqno0) of
-    {ok, {Ts, Seqno}}     -> S   = S0#s{last_ts = Ts, seqno = Seqno},
-                             Res = flake_util:mk_id(Ts, MacAddr, Seqno),
-                             {reply, {ok, Res}, S};
-    {error, out_of_seqno} -> {reply, {error, out_of_seqno}, S0};
-    {error, Rsn}          -> {stop, Rsn, S0}
+  case next(LastTs, flake_util:now_in_ms(), LastSeqno) of
+    {ok, {Ts, Seqno}} ->
+      S = S0#s{last_used_ts = Ts, last_used_seqno = Seqno},
+      {reply, {ok, flake_util:mk_id(Ts, MacAddr, Seqno)}, S};
+    {error, out_of_seqno} ->
+      {reply, {error, out_of_seqno}, S0};
+    {error, Rsn} ->
+      {stop, Rsn, S0}
   end.
+
+handle_cast({set_last_persisted_ts, Ts}, S0) ->
+  {noreply, S0};
 
 handle_cast(_Msg, S) ->
   {noreply, S}.

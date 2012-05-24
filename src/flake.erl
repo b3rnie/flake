@@ -30,33 +30,13 @@
 id() -> flake_server:id().
 
 %% @doc id(Base::integer()) -> list()
-id(Base) -> flake_server:id(Base).
-
-%%%_* Tests ============================================================
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
-
-generate_base_48_test() ->
-  ok = application:start(flake, permanent),
-  {ok, _IdStr0} = flake:id(48),
-  {ok, _IdStr1} = flake:id(48),
-  application:stop(flake),
-  ok.
-
-generate_10k_ids_test() ->
-  application:start(flake, permanent),
-  generate(10000),
-  application:stop(flake),
-  ok.
-
-generate(0) -> ok;
-generate(N) ->
-  {ok, <<Int:128/integer>>} = flake:id(),
-  true = erlang:is_integer(Int),
-  generate(N-1).
-
--else.
--endif.
+id(Base) ->
+  case flake_server:id(Base) of
+    {ok, <<Id:128/integer>>} ->
+      {ok, flake_util:integer_to_list(Id, Base)};
+    {error, _Rsn} = Err ->
+      Err
+  end.
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

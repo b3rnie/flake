@@ -23,38 +23,37 @@
 -export([ mk_id/3
         , now_in_ms/0
         , get_mac_addr/1
-        , mac_addr_to_int/1
         , read_timestamp/1
         , write_timestamp/2
         , integer_to_list/2
+        , get_env/1
         ]).
 
 %%%_* Code =============================================================
 %%%_ * API -------------------------------------------------------------
 
-%% @doc mac addr as a 6 element/byte array
+%% @doc mac addr as a 6 byte binary
 get_mac_addr(Interface) ->
   {ok, Addrs} = inet:getifaddrs(),
   case lists:keyfind(Interface, 1, Addrs) of
     {Interface, Props} ->
       case lists:keyfind(hwaddr, 1, Props) of
-        {hwaddr, Mac} -> {ok, Mac};
+        {hwaddr, Mac} -> {ok, erlang:list_to_binary(Mac)};
         false         -> {error, mac_not_found}
       end;
     false ->
       {error, interface_not_found}
   end.
 
-mac_addr_to_int(MacAddr) ->
-  <<MacInt:48/integer>> = erlang:list_to_binary(MacAddr),
-  MacInt.
-
 now_in_ms() ->
   {Ms, S, Us} = erlang:now(),
   1000000000*Ms + S*1000 + erlang:trunc(Us/1000).
 
-mk_id(Ts, Mac, Seqno) ->
-  <<Ts:64/integer, Mac:48/integer, Seqno:16/integer>>.
+mk_id(Ts, Mac, Seqno)
+  when erlang:is_integer(Ts),
+       erlang:is_binary(Mac),
+       erlang:is_integer(Seqno) ->
+  <<Ts:64/integer, Mac:6/binary, Seqno:16/integer>>.
 
 %%
 %% n.b. - unique_id_62/0 and friends pulled from riak
@@ -97,6 +96,17 @@ read_timestamp(File) ->
     {error, Rsn} -> {error, Rsn}
   end.
 
+get_env(Ks) ->
+  get_env(Ks, []).
+
+get_env([K|Ks], Acc) ->
+  case application:get_env(flake, K) of
+    {ok, V}   -> get_env(Ks, [V|Acc]);
+    undefined -> {error, {missing_env, K}}
+  end;
+get_env([], Acc) ->
+  {ok, lists:reverse(Acc)}.
+
 %%%_* Tests ============================================================
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -113,10 +123,10 @@ rw_timestamp_test() ->
 
 mk_id_test() ->
   Ts    = now_in_ms(),
-  Mac   = mac_addr_to_int(lists:seq(1, 6)),
+  Mac   = erlang:list_to_binary(lists:seq(1, 6)),
   Seqno = 0,
   Flake = mk_id(Ts, Mac, Seqno),
-  <<Ts:64/integer, Mac:48/integer, Seqno:16/integer>> = Flake,
+  <<Ts:64/integer, Mac:6/binary, Seqno:16/integer>> = Flake,
   ok.
 
 integer_to_list_base2_32_test() ->

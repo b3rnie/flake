@@ -23,10 +23,10 @@
 
 %%%_* Code =============================================================
 %%%_ * Types -----------------------------------------------------------
--record(s, { file
-           , interval
+-record(s, { file     :: list()
+           , interval :: integer()
            , tref
-           , ts
+           , ts       :: integer()
            }).
 %%%_ * API -------------------------------------------------------------
 start_link(Args) ->
@@ -67,7 +67,6 @@ handle_cast(_Msg, S) ->
   {noreply, S}.
 
 handle_info(save, #s{file = File, ts = Ts0} = S) ->
-  io:format("save, prev: ~p~n", [Ts0]),
   case update_persisted_ts(File, Ts0) of
     {ok, Ts}     -> flake_server:set_last_persisted_ts(Ts),
                     {noreply, S#s{ts = Ts}};
@@ -119,44 +118,37 @@ read_timestamp(File) ->
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
--define(tmpfile, "/tmp/flake.tmp").
 rw_timestamp_test() ->
-  file:delete(?tmpfile),
-  Ts = flake_util:now_in_ms(),
-  {error, enoent} = read_timestamp(?tmpfile),
-  ok              = write_timestamp(?tmpfile, Ts),
-  {ok, Ts}        = read_timestamp(?tmpfile),
-  file:delete(?tmpfile),
+  File = getenv(timestamp_file),
+  file:delete(File),
+  Ts              = 0,
+  {error, enoent} = read_timestamp(File),
+  ok              = write_timestamp(File, Ts),
+  {ok, Ts}        = read_timestamp(File),
+  flake_test_lib:cleanup(),
   ok.
 
 clock_backwards_test() ->
-  File = load_and_write(flake_util:now_in_ms() + 5000),
-  %% startup will fail, dont want to kill test..
+  File = getenv(timestamp_file),
+  ok   = write_timestamp(File, flake_util:now_in_ms() + 5000),
   erlang:process_flag(trap_exit, true),
   {error, clock_running_backwards} = flake_time_server:start_link([]),
-  file:delete(File),
+  flake_test_lib:cleanup(),
   ok.
 
 clock_advanced_test() ->
-  application:load(flake),
-  {ok, Downtime} = application:get_env(flake, allowable_downtime),
-  File = load_and_write(flake_util:now_in_ms() - Downtime - 1),
+  File     = getenv(timestamp_file),
+  Downtime = getenv(allowable_downtime),
+  ok       = write_timestamp(File, flake_util:now_in_ms() - Downtime -1),
   erlang:process_flag(trap_exit, true),
   {error, clock_advanced} = flake_time_server:start_link([]),
-  file:delete(File).
-
-load_and_write(Ts) ->
-  application:load(flake),
-  {ok, File} = application:get_env(flake, timestamp_file),
-  write_timestamp(File, Ts),
-  File.
-
-periodic_save_test() ->
-  _File = load_and_write(flake_util:now_in_ms()),
-  {ok, Pid} = flake_time_server:start_link([]),
-  timer:sleep(2000),
-  exit(Pid, normal),
+  flake_test_lib:cleanup(),
   ok.
+
+getenv(K) ->
+  application:load(flake),
+  {ok, V} = application:get_env(flake, K),
+  V.
 
 -else.
 -endif.

@@ -29,7 +29,6 @@
 
 %%%_* Code =============================================================
 %%%_ * API -------------------------------------------------------------
-
 %% @doc mac addr as a 6 byte binary
 get_mac_addr(Interface) ->
   {ok, Addrs} = inet:getifaddrs(),
@@ -58,12 +57,6 @@ mk_id(Ts, Mac, Seqno)
 %%
 %% @doc Convert an integer to its string representation in the given
 %%      base.  Bases 2-62 are supported.
-integer_to_list(I, Base)
-  when erlang:is_integer(I),
-       erlang:is_integer(Base),
-       Base >= 2,
-       Base =< 36 ->
-  erlang:integer_to_list(I, Base);
 integer_to_list(I, Base)
   when erlang:is_integer(I),
        erlang:is_integer(Base),
@@ -117,11 +110,7 @@ integer_to_list_base2_32_test() ->
                              0 ->  random:uniform(16#FFFF);
                              1 -> -random:uniform(16#FFFF)
                            end,
-                    R0 =
-                      case I < 0 of
-                        true  -> [$-|integer_to_list(-I, Base, [])];
-                        false -> integer_to_list(I, Base, [])
-                      end,
+                    R0 = integer_to_list(I, Base),
                     R1 = erlang:integer_to_list(I, Base),
                     ?assertEqual(R0, R1)
                 end, lists:seq(1, 500)).

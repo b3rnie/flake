@@ -35,12 +35,13 @@
 
 %%%_* Code =============================================================
 %%%_ * Types -----------------------------------------------------------
--record(s, { interval              :: integer()
-           , last_persisted_ts     :: integer()
-           , last_used_ts          :: integer()
-           , last_used_seqno   = 0 :: integer()
-           , mac_addr              :: binary()
+-record(s, { interval          :: integer()
+           , last_persisted_ts :: integer()
+           , last_used_ts      :: integer()
+           , last_used_seqno   :: integer()
+           , mac_addr          :: binary()
            }).
+
 %%%_ * API -------------------------------------------------------------
 start_link(Args) ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
@@ -78,7 +79,8 @@ handle_call(get, _From, #s{ last_used_ts      = LastTs
                           } = S0) ->
   case flake_util:now_in_ms() of
     Now when Now - (LastPersistedTs + Interval * 2) >= 0 ->
-      %% current time too far ahead of persisted
+      %% cant generate id, current time too far ahead of persisted.
+      %% If we do there is a risk of generating duplicates.
       {stop, clock_advanced, S0};
     Now ->
       case next(LastTs, Now, LastSeqno) of

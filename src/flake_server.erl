@@ -78,10 +78,6 @@ handle_call(get, _From, #s{ last_used_ts      = LastTs
                           } = S0) ->
   case flake_util:now_in_ms() of
     Now when Now - (LastPersistedTs + Interval * 2) >= 0 ->
-      io:format("Now: ~p~n", [Now]),
-      io:format("Now: ~p~n", [LastPersistedTs]),
-      io:format("Now: ~p~n", [Interval]),
-
       %% current time too far ahead of persisted
       {stop, clock_advanced, S0};
     Now ->

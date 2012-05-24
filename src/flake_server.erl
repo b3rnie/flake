@@ -21,6 +21,7 @@
 
 %%%_* Exports ==========================================================
 -export([ start_link/1
+        , set_last_persisted_ts/1
         , id/0
         ]).
 
@@ -55,37 +56,52 @@ init(_Args) ->
   case flake_util:get_env([interface, interval]) of
     {ok, [Interface, Interval]} ->
       case flake_util:get_mac_addr(Interface) of
-        {ok, MacAddr} -> {ok, #s{ last_used_ts = flake_util:now_in_ms()
-                                , interval = Interval
-                                , mac_addr = MacAddr
-                                }};
-        {error, Rsn}  -> {stop, Rsn}
+        {ok, MacAddr} ->
+          {ok, #s{ mac_addr          = MacAddr
+                 , interval          = Interval
+                 , last_used_ts      = flake_util:now_in_ms()
+                 , last_used_seqno   = 0
+                 , last_persisted_ts = flake_time_server:get_ts()
+                 }};
+        {error, Rsn} ->
+          {stop, Rsn}
       end;
-    {error, Rsn} -> {stop, Rsn}
-  end.
-
-%% TODO: Ensure that ts used to generate id is not more than
-%% 2 x interval ahead and let flake_time_server
-%% delay startup until 2 x interval has passed.
-handle_call(get, _From, #s{ last_used_ts    = LastTs
-                          , last_used_seqno = LastSeqno
-                          , mac_addr        = MacAddr
-                          } = S0) ->
-  case next(LastTs, flake_util:now_in_ms(), LastSeqno) of
-    {ok, {Ts, Seqno}} ->
-      S = S0#s{last_used_ts = Ts, last_used_seqno = Seqno},
-      {reply, {ok, flake_util:mk_id(Ts, MacAddr, Seqno)}, S};
-    {error, out_of_seqno} ->
-      {reply, {error, out_of_seqno}, S0};
     {error, Rsn} ->
-      {stop, Rsn, S0}
+      {stop, Rsn}
   end.
 
-handle_cast({set_last_persisted_ts, Ts}, S0) ->
-  {noreply, S0};
+handle_call(get, _From, #s{ last_used_ts      = LastTs
+                          , last_used_seqno   = LastSeqno
+                          , mac_addr          = MacAddr
+                          , last_persisted_ts = LastPersistedTs
+                          , interval          = Interval
+                          } = S0) ->
+  case flake_util:now_in_ms() of
+    Now when Now - (LastPersistedTs + Interval * 2) >= 0 ->
+      io:format("Now: ~p~n", [Now]),
+      io:format("Now: ~p~n", [LastPersistedTs]),
+      io:format("Now: ~p~n", [Interval]),
 
-handle_cast(_Msg, S) ->
-  {noreply, S}.
+      %% current time too far ahead of persisted
+      {stop, clock_advanced, S0};
+    Now ->
+      case next(LastTs, Now, LastSeqno) of
+        {ok, {Ts, Seqno}} ->
+          S = S0#s{last_used_ts = Ts, last_used_seqno = Seqno},
+          {reply, {ok, flake_util:mk_id(Ts, MacAddr, Seqno)}, S};
+        {error, out_of_seqno} ->
+          {reply, {error, out_of_seqno}, S0};
+        {error, Rsn} ->
+          {stop, Rsn, S0}
+      end
+  end.
+
+handle_cast({set_last_persisted_ts, Ts},
+            #s{last_persisted_ts = LastPersistedTs} = S) ->
+  case Ts >= LastPersistedTs of
+    true  -> {noreply, S#s{last_persisted_ts = LastPersistedTs}};
+    false -> {stop, clock_running_backwards, S}
+  end.
 
 handle_info(_Info, S) ->
   {noreply, S}.
@@ -97,7 +113,7 @@ code_change(_OldVsn, S, _Extra) ->
   {ok, S}.
 
 %%%_ * Internals -------------------------------------------------------
-next(OldTs, OldTs, Seqno) when Seqno >= 65535 -> %% 16 bits
+next(OldTs, OldTs, Seqno) when Seqno >= 16#FFFF ->
   {error, out_of_seqno};
 next(OldTs, OldTs, Seqno) ->
   {ok, {OldTs, Seqno+1}};

@@ -10,6 +10,7 @@
 
 %%%_* Exports ==========================================================
 -export([ start_link/1
+        , get_ts/0
         ]).
 
 -export([ init/1
@@ -23,16 +24,16 @@
 %%%_* Code =============================================================
 %%%_ * Types -----------------------------------------------------------
 -record(s, { file
-           , tref
            , interval
+           , tref
            , ts
            }).
 %%%_ * API -------------------------------------------------------------
 start_link(Args) ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
 
-get_persisted_ts() ->
-  gen_server:call(?MODULE, get_persisted_ts).
+get_ts() ->
+  gen_server:call(?MODULE, get_ts, infinity).
 
 %%%_ * gen_server callbacks --------------------------------------------
 init(_Args) ->
@@ -41,13 +42,13 @@ init(_Args) ->
                           , interval]) of
     {ok, [File, Downtime, Interval]} ->
       Now = flake_util:now_in_ms(),
-      case flake_util:read_timestamp(File) of
+      case read_timestamp(File) of
         {ok, Ts} when Ts > Now ->
           {stop, clock_running_backwards};
         {ok, Ts} when Now - Ts > Downtime ->
           {stop, clock_advanced};
         {ok, Ts} ->
-          Delay = Ts + Interval - Now + 1,
+          Delay = Ts + Interval * 2 - Now,
           maybe_delay(Delay),
           do_init(Now, #s{file = File, interval = Interval});
         {error, enoent} ->
@@ -59,15 +60,16 @@ init(_Args) ->
       {stop, Rsn}
   end.
 
-handle_call(get_persisted_ts, _From, #s{ts = Ts} = S) ->
+handle_call(get_ts, _From, #s{ts = Ts} = S) ->
   {reply, Ts, S}.
 
 handle_cast(_Msg, S) ->
   {noreply, S}.
 
 handle_info(save, #s{file = File, ts = Ts0} = S) ->
+  io:format("save, prev: ~p~n", [Ts0]),
   case update_persisted_ts(File, Ts0) of
-    {ok, Ts}     -> %% flake_server:set_last_persisted_ts(Ts),
+    {ok, Ts}     -> flake_server:set_last_persisted_ts(Ts),
                     {noreply, S#s{ts = Ts}};
     {error, Rsn} -> {stop, Rsn, S}
   end;
@@ -83,12 +85,11 @@ code_change(_OldVsn, S, _Extra) ->
   {ok, S}.
 
 %%%_ * Internals -------------------------------------------------------
-
 do_init(Now, #s{file = File, interval = Interval} = S) ->
   case update_persisted_ts(File, Now) of
     {ok, NewTs} ->
       {ok, TRef} = timer:send_interval(Interval, save),
-      {ok, S#s{ts = NewTs}};
+      {ok, S#s{ts = NewTs, tref = TRef}};
     {error, Rsn} ->
       {stop, Rsn}
   end.
@@ -101,13 +102,32 @@ maybe_delay(_Delay) -> ok.
 update_persisted_ts(File, OldTs) ->
   case flake_util:now_in_ms() of
     Ts when Ts < OldTs -> {error, clock_running_backwards};
-    Ts                 -> flake_util:write_timestamp(File, Ts),
+    Ts                 -> write_timestamp(File, Ts),
                           {ok, Ts}
+  end.
+
+write_timestamp(File, Ts) ->
+  ok = file:write_file(File, erlang:term_to_binary(Ts)).
+
+read_timestamp(File) ->
+  case file:read_file(File) of
+    {ok, Bin}    -> {ok, erlang:binary_to_term(Bin)};
+    {error, Rsn} -> {error, Rsn}
   end.
 
 %%%_* Tests ============================================================
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
+-define(tmpfile, "/tmp/flake.tmp").
+rw_timestamp_test() ->
+  file:delete(?tmpfile),
+  Ts = flake_util:now_in_ms(),
+  {error, enoent} = read_timestamp(?tmpfile),
+  ok              = write_timestamp(?tmpfile, Ts),
+  {ok, Ts}        = read_timestamp(?tmpfile),
+  file:delete(?tmpfile),
+  ok.
 
 clock_backwards_test() ->
   File = load_and_write(flake_util:now_in_ms() + 5000),
@@ -128,7 +148,7 @@ clock_advanced_test() ->
 load_and_write(Ts) ->
   application:load(flake),
   {ok, File} = application:get_env(flake, timestamp_file),
-  flake_util:write_timestamp(File, Ts),
+  write_timestamp(File, Ts),
   File.
 
 periodic_save_test() ->

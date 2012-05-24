@@ -23,8 +23,6 @@
 -export([ mk_id/3
         , now_in_ms/0
         , get_mac_addr/1
-        , read_timestamp/1
-        , write_timestamp/2
         , integer_to_list/2
         , get_env/1
         ]).
@@ -87,15 +85,6 @@ integer_to_list(I0, Base, R0) ->
     I1 -> integer_to_list(I1, Base, R1)
   end.
 
-write_timestamp(File, Ts) ->
-  file:write_file(File, erlang:term_to_binary(Ts)).
-
-read_timestamp(File) ->
-  case file:read_file(File) of
-    {ok, Bin}    -> {ok, erlang:binary_to_term(Bin)};
-    {error, Rsn} -> {error, Rsn}
-  end.
-
 get_env(Ks) ->
   get_env(Ks, []).
 
@@ -110,16 +99,6 @@ get_env([], Acc) ->
 %%%_* Tests ============================================================
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
-
--define(tmpfile, "/tmp/flake.tmp").
-rw_timestamp_test() ->
-  file:delete(?tmpfile),
-  Ts = now_in_ms(),
-  {error, enoent} = read_timestamp(?tmpfile),
-  ok              = write_timestamp(?tmpfile, Ts),
-  {ok, Ts}        = read_timestamp(?tmpfile),
-  file:delete(?tmpfile),
-  ok.
 
 mk_id_test() ->
   Ts    = now_in_ms(),

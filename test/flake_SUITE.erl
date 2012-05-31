@@ -18,6 +18,7 @@
         , clock_backwards_test/1
         , clock_advanced_test/1
         , rw_timestamp_test/1
+        , time_server_died_test/1
         ]).
 
 %%%_* Code =============================================================
@@ -29,6 +30,7 @@ all() ->
     , clock_backwards_test
     , clock_advanced_test
     , rw_timestamp_test
+    , time_server_died_test
     ].
 
 init_per_suite(Config) ->
@@ -65,9 +67,19 @@ init_per_testcase(clock_advanced_test, Config) ->
 init_per_testcase(rw_timestamp_test, Config) ->
   file:delete(kf(timestamp_file, Config)),
   Config;
+init_per_testcase(time_server_died_test, Config) ->
+  erlang:process_flag(trap_exit, true),
+  {ok, Pid1} = flake_time_server:start_link([]),
+  {ok, Pid2} = flake_server:start_link([]),
+  [{flake_time_server_pid, Pid1}, {flake_server_pid, Pid2} | Config];
 init_per_testcase(_TC, Config) ->
   Config.
 
+end_per_testcase(time_server_died_test, Config) ->
+  exit(kf(flake_time_server_pid, Config), killed),
+  exit(kf(flake_server_pid, Config), killed),
+  file:delete(kf(timestamp_file, Config)),
+  ok;
 end_per_testcase(_TC, Config) ->
   application:stop(flake),
   file:delete(kf(timestamp_file, Config)),
@@ -134,6 +146,21 @@ rw_timestamp_test(Config) ->
   ok.
 
 %%%_ *  ----------------------------------------------------------------
+time_server_died_test(Config) ->
+  Interval      = kf(interval, Config),
+  TimeserverPid = kf(flake_time_server_pid, Config),
+
+  {ok, _Bin1} = flake:id_bin(),
+  exit(TimeserverPid, killed),
+  {ok, _Bin2} = flake:id_bin(),
+  timer:sleep(Interval),
+  {ok, _Bin3} = flake:id_bin(),
+  timer:sleep(Interval),
+  {error, clock_advanced} = flake:id_bin(),
+  ok.
+
+%%%_ *  ----------------------------------------------------------------
+
 kf(K, L) ->
   {K, V} = lists:keyfind(K, 1, L),
   V.

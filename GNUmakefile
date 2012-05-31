@@ -17,7 +17,7 @@ check:
 
 test:
 	./rebar eunit $(suite) skip_deps=true
-
+	./rebar ct
 
 conf_clean:
 	@:

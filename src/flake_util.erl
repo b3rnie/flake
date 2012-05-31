@@ -25,6 +25,8 @@
         , get_mac_addr/1
         , integer_to_list/2
         , get_env/1
+        , write_timestamp/2
+        , read_timestamp/1
         ]).
 
 %%%_* Code =============================================================
@@ -89,6 +91,15 @@ get_env([K|Ks], Acc) ->
 get_env([], Acc) ->
   {ok, lists:reverse(Acc)}.
 
+write_timestamp(File, Ts) ->
+  ok = file:write_file(File, erlang:term_to_binary(Ts)).
+
+read_timestamp(File) ->
+  case file:read_file(File) of
+    {ok, Bin}    -> {ok, erlang:binary_to_term(Bin)};
+    {error, Rsn} -> {error, Rsn}
+  end.
+
 %%%_* Tests ============================================================
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
@@ -114,6 +125,11 @@ integer_to_list_base2_32_test() ->
                     R1 = erlang:integer_to_list(I, Base),
                     ?assertEqual(R0, R1)
                 end, lists:seq(1, 500)).
+
+export_cover_test() ->
+  %% not a test, just to be able to union eunit and ct cover data..
+  cover:export("../eunit.coverdata"),
+  ok.
 
 -else.
 -endif.

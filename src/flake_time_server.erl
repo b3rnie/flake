@@ -42,7 +42,7 @@ init(_Args) ->
                           , interval]) of
     {ok, [File, Downtime, Interval]} ->
       Now = flake_util:now_in_ms(),
-      case read_timestamp(File) of
+      case flake_util:read_timestamp(File) of
         {ok, Ts} when Ts > Now ->
           {stop, clock_running_backwards};
         {ok, Ts} when Now - Ts > Downtime ->
@@ -101,58 +101,18 @@ maybe_delay(_Delay) -> ok.
 update_persisted_ts(File, OldTs) ->
   case flake_util:now_in_ms() of
     Ts when Ts < OldTs -> {error, clock_running_backwards};
-    Ts                 -> write_timestamp(File, Ts),
+    Ts                 -> flake_util:write_timestamp(File, Ts),
                           {ok, Ts}
   end.
 
-write_timestamp(File, Ts) ->
-  ok = file:write_file(File, erlang:term_to_binary(Ts)).
-
-read_timestamp(File) ->
-  case file:read_file(File) of
-    {ok, Bin}    -> {ok, erlang:binary_to_term(Bin)};
-    {error, Rsn} -> {error, Rsn}
-  end.
 
 %%%_* Tests ============================================================
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
-rw_timestamp_test() ->
-  File = getenv(timestamp_file),
-  file:delete(File),
-  Ts              = 0,
-  {error, enoent} = read_timestamp(File),
-  ok              = write_timestamp(File, Ts),
-  {ok, Ts}        = read_timestamp(File),
-  flake_test_lib:cleanup(),
-  ok.
-
-clock_backwards_test() ->
-  File = getenv(timestamp_file),
-  ok   = write_timestamp(File, flake_util:now_in_ms() + 5000),
-  erlang:process_flag(trap_exit, true),
-  {error, clock_running_backwards} = flake_time_server:start_link([]),
-  flake_test_lib:cleanup(),
-  ok.
-
-clock_advanced_test() ->
-  File     = getenv(timestamp_file),
-  Downtime = getenv(allowable_downtime),
-  ok       = write_timestamp(File, flake_util:now_in_ms() - Downtime -1),
-  erlang:process_flag(trap_exit, true),
-  {error, clock_advanced} = flake_time_server:start_link([]),
-  flake_test_lib:cleanup(),
-  ok.
-
-getenv(K) ->
-  application:load(flake),
-  {ok, V} = application:get_env(flake, K),
-  V.
 
 -else.
 -endif.
-
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

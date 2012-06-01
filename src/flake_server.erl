@@ -97,7 +97,7 @@ handle_call(get, _From, #s{ last_used_ts      = LastTs
 handle_cast({set_last_persisted_ts, Ts},
             #s{last_persisted_ts = LastPersistedTs} = S) ->
   case Ts >= LastPersistedTs of
-    true  -> {noreply, S#s{last_persisted_ts = LastPersistedTs}};
+    true  -> {noreply, S#s{last_persisted_ts = Ts}};
     false -> {stop, clock_running_backwards, S}
   end.
 

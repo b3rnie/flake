@@ -126,11 +126,6 @@ integer_to_list_base2_32_test() ->
                     ?assertEqual(R0, R1)
                 end, lists:seq(1, 500)).
 
-export_cover_test() ->
-  %% not a test, just to be able to union eunit and ct cover data..
-  cover:export("../eunit.coverdata"),
-  ok.
-
 -else.
 -endif.
 

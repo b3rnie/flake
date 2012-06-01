@@ -34,8 +34,6 @@ all() ->
     ].
 
 init_per_suite(Config) ->
-  %% import eunit cover
-  cover:import("../../eunit.coverdata"),
   ok = application:load(flake),
   {ok, [File, Downtime, Interface, Interval]} =
     flake_util:get_env([ timestamp_file

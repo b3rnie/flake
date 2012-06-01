@@ -18,6 +18,7 @@
         , clock_backwards_test/1
         , clock_advanced_test/1
         , rw_timestamp_test/1
+        , time_server_updates_test/1
         , time_server_died_test/1
         ]).
 
@@ -30,6 +31,7 @@ all() ->
     , clock_backwards_test
     , clock_advanced_test
     , rw_timestamp_test
+    , time_server_updates_test
     , time_server_died_test
     ].
 
@@ -48,7 +50,8 @@ end_per_suite(Config) ->
 
 init_per_testcase(TC, Config) when TC =:= types_test;
                                    TC =:= sequential_ids_test;
-                                   TC =:= parallell_test ->
+                                   TC =:= parallell_test;
+                                   TC =:= time_server_updates_test ->
   ok = application:start(flake),
   Config;
 init_per_testcase(clock_backwards_test, Config) ->
@@ -141,6 +144,12 @@ rw_timestamp_test(Config) ->
   {ok, Ts0}       = flake_util:read_timestamp(File),
   ok              = flake_util:write_timestamp(File, Ts1),
   {ok, Ts1}       = flake_util:read_timestamp(File),
+  ok.
+%%%_ *  ----------------------------------------------------------------
+time_server_updates_test(Config) ->
+  {ok, _Bin1} = flake:id_bin(),
+  timer:sleep(kf(interval, Config) * 2),
+  {ok, _Bin2} = flake:id_bin(),
   ok.
 
 %%%_ *  ----------------------------------------------------------------

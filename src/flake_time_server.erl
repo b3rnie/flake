@@ -42,15 +42,19 @@ init(_Args) ->
                           , interval]) of
     {ok, [File, Downtime, Interval]} ->
       Now = flake_util:now_in_ms(),
+      error_logger:info_msg("~p: now = ~p~n", [?MODULE, Now]),
       case flake_util:read_timestamp(File) of
-        {ok, Ts} when Ts > Now ->
-          {stop, clock_running_backwards};
-        {ok, Ts} when Now - Ts > Downtime ->
-          {stop, clock_advanced};
         {ok, Ts} ->
-          Delay = Ts + Interval * 2 - Now,
-          maybe_delay(Delay),
-          do_init(Now, #s{file = File, interval = Interval});
+          error_logger:info_msg("~p: last persisted ts = ~p~n",
+                                [?MODULE, Ts]),
+          if Ts > Now ->
+              {stop, clock_running_backwards};
+             Now - Ts > Downtime ->
+              {stop, clock_advanced};
+             true ->
+              maybe_delay(Ts + Interval * 2 - Now),
+              do_init(Now, #s{file = File, interval = Interval})
+          end;
         {error, enoent} ->
           do_init(Now, #s{file = File, interval = Interval});
         {error, Rsn} ->
@@ -68,7 +72,7 @@ handle_cast(_Msg, S) ->
 
 handle_info(save, #s{file = File, ts = Ts0} = S) ->
   case update_persisted_ts(File, Ts0) of
-    {ok, Ts}     -> flake_server:set_last_persisted_ts(Ts),
+    {ok, Ts}     -> flake_server:update_persisted_ts(Ts),
                     {noreply, S#s{ts = Ts}};
     {error, Rsn} -> {stop, Rsn, S}
   end;
@@ -94,7 +98,7 @@ do_init(Now, #s{file = File, interval = Interval} = S) ->
   end.
 
 maybe_delay(Delay) when Delay > 0 ->
-  error_logger:info_msg("delaying startup: ~p", [Delay]),
+  error_logger:info_msg("~p: delaying startup = ~p~n", [Delay]),
   timer:sleep(Delay);
 maybe_delay(_Delay) -> ok.
 

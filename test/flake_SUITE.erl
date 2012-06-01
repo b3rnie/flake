@@ -13,6 +13,7 @@
 
 %% tc
 -export([ types_test/1
+        , id_properties_test/1
         , sequential_ids_test/1
         , parallell_test/1
         , clock_backwards_test/1
@@ -26,6 +27,7 @@
 
 all() ->
     [ types_test
+    , id_properties_test
     , sequential_ids_test
     , parallell_test
     , clock_backwards_test
@@ -49,6 +51,7 @@ end_per_suite(Config) ->
   Config.
 
 init_per_testcase(TC, Config) when TC =:= types_test;
+                                   TC =:= id_properties_test;
                                    TC =:= sequential_ids_test;
                                    TC =:= parallell_test;
                                    TC =:= time_server_updates_test ->
@@ -95,6 +98,30 @@ types_test(_Config) ->
   true = erlang:is_binary(Bin),
   true = erlang:is_list(Str),
   true = erlang:is_integer(Int),
+  ok.
+
+%%%_ *  ----------------------------------------------------------------
+id_properties_test(_Config) ->
+  Ts1 = flake_util:now_in_ms(),
+  timer:sleep(1),
+  {ok, <<FlakeTs1:64/integer,
+         FlakeMac1:6/binary,
+         FlakeSeqno1:16/integer>>} = flake:id_bin(),
+  timer:sleep(1),
+  Ts2 = flake_util:now_in_ms(),
+  timer:sleep(1),
+  {ok, <<FlakeTs2:64/integer,
+         FlakeMac2:6/binary,
+         FlakeSeqno2:16/integer>>} = flake:id_bin(),
+  timer:sleep(1),
+
+  %% properties that should hold
+  true = Ts1 < FlakeTs1,
+  true = FlakeTs1 < Ts2,
+  true = Ts2 < FlakeTs2,
+  true = FlakeMac1 =:= FlakeMac2,
+  true = FlakeSeqno1 =:= 0,
+  true = FlakeSeqno2 =:= 0,
   ok.
 
 %%%_ *  ----------------------------------------------------------------

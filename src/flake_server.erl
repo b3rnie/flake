@@ -21,7 +21,7 @@
 
 %%%_* Exports ==========================================================
 -export([ start_link/1
-        , set_last_persisted_ts/1
+        , update_persisted_ts/1
         , id/0
         ]).
 
@@ -46,8 +46,8 @@
 start_link(Args) ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
 
-set_last_persisted_ts(Ts) ->
-  gen_server:cast(?MODULE, {set_last_persisted_ts, Ts}).
+update_persisted_ts(Ts) ->
+  gen_server:cast(?MODULE, {update_persisted_ts, Ts}).
 
 %% @doc generate a new snowflake id
 id() -> gen_server:call(?MODULE, get).
@@ -94,7 +94,7 @@ handle_call(get, _From, #s{ last_used_ts      = LastTs
       end
   end.
 
-handle_cast({set_last_persisted_ts, Ts},
+handle_cast({update_persisted_ts, Ts},
             #s{last_persisted_ts = LastPersistedTs} = S) ->
   case Ts >= LastPersistedTs of
     true  -> {noreply, S#s{last_persisted_ts = Ts}};

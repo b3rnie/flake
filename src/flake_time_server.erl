@@ -98,7 +98,7 @@ do_init(Now, #s{file = File, interval = Interval} = S) ->
   end.
 
 maybe_delay(Delay) when Delay > 0 ->
-  error_logger:info_msg("~p: delaying startup = ~p~n", [Delay]),
+  error_logger:info_msg("~p: delaying startup = ~p~n", [?MODULE, Delay]),
   timer:sleep(Delay);
 maybe_delay(_Delay) -> ok.
 

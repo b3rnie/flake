@@ -37,7 +37,7 @@ init(_Args) ->
   %% timestamps used to generate flake id's to disk which obviously
   %% is a big performance hit.
   %%
-  %% flake_server persists the current time to disk with regular
+  %% flake_time_server persists the current time to disk with regular
   %% (configurable) intervals.
   %% ----------|----------|----------|--------       persists
   %%         write      write      write

@@ -32,6 +32,23 @@
 %%%_* Code =============================================================
 %%%_ * API -------------------------------------------------------------
 %% @doc mac addr as a 6 byte binary
+get_mac_addr(_Interface = any) ->
+  {ok, Addrs} = inet:getifaddrs(),
+  %% try to skip loopback
+  case lists:filter(fun({_Interface, Props}) ->
+                        case lists:keyfind(hwaddr, 1, Props) of
+                          {hwaddr, [0,0,0,0,0,0]} -> false;
+                          {hwaddr, _Mac}          -> true;
+                          false                   -> false
+                        end
+                    end, Addrs) of
+    [{_If, Props}|_] ->
+      {hwaddr, Mac} = lists:keyfind(hwaddr, 1, Props),
+      {ok, erlang:list_to_binary(Mac)};
+    [] ->
+      %% NOTE: do we really want this as a fallback?
+      {ok, <<0,0,0,0,0,0>>}
+  end;
 get_mac_addr(Interface) ->
   {ok, Addrs} = inet:getifaddrs(),
   case lists:keyfind(Interface, 1, Addrs) of
@@ -125,6 +142,10 @@ integer_to_list_base2_32_test() ->
                     R1 = erlang:integer_to_list(I, Base),
                     ?assertEqual(R0, R1)
                 end, lists:seq(1, 500)).
+
+any_interface_test() ->
+  {ok, <<_Mac:6/binary>>} = get_mac_addr(any),
+  ok.
 
 -else.
 -endif.

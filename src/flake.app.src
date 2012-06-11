@@ -9,7 +9,7 @@
                   stdlib
                  ]},
   {mod, { flake_app, []}},
-  {env, [ {interface,          "eth0"}
+  {env, [ {interface,          any}
         , {timestamp_file,     "/tmp/flake-timestamp"}
         , {allowable_downtime, 2592000000}
         , {interval,           1000}

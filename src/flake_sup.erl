@@ -50,7 +50,7 @@ init(_Args) ->
   %% time than the persist interval and the clock is stopped
   %% or running backwards. This is handled by delaying
   %% startup to guarantee unique id's.
-  RestartStrategy = {one_for_all, 4, 10},
+  RestartStrategy = {one_for_all, 4, 60},
   Kids = [ {flake_time_server, {flake_time_server, start_link, [[]]},
             permanent, 5000, worker, [flake_time_server]}
          , {flake_server, {flake_server, start_link, [[]]},

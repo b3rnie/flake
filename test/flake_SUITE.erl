@@ -191,6 +191,7 @@ time_server_died_test(Config) ->
   {ok, _Bin3} = flake:id_bin(),
   timer:sleep(Interval),
   {error, clock_advanced} = flake:id_bin(),
+  {error, clock_advanced} = flake:id_bin(),
   ok.
 
 %%%_ *  ----------------------------------------------------------------

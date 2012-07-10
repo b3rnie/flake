@@ -81,7 +81,7 @@ handle_call(get, _From, #s{ last_used_ts      = LastTs
     Now when Now - (LastPersistedTs + Interval * 2) >= 0 ->
       %% cant generate id, current time too far ahead of persisted.
       %% If we do there is a risk of generating duplicates.
-      {stop, clock_advanced, {error, clock_advanced}, S0};
+      {reply, {error, clock_advanced}, S0};
     Now ->
       case next(LastTs, Now, LastSeqno) of
         {ok, {Ts, Seqno}} ->

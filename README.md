@@ -48,24 +48,6 @@ Generate one 128 bit integer:
 Generate one base 16 encoded string:
          {ok, IdStr} = flake:id_str(16).
 
-These last steps simple ensure that a flake application is up and running. Next we'll talk more about operational use.
-
-
-# Deployment
-
-This version is intended to be used in a release. Id's can be requested from
-another Erlang VM (or application that speaks Erlang distribution a la [Scalang](https://github.com/boundary/scalang)).
-
-Example usage from your application.
-
-```erlang
-	flake() ->
-            {ok, <<FlakeId:16/binary>>} = rpc:call(nodename, flake, id_bin, []),
-            %% example id decomposition for demonstration only
-    	    <<_Time:64/integer,_WorkerId:48/integer,_Sequence:16/integer>> = FlakeId,
-   	 	FlakeId.
-```
-
 # Anatomy
 
 Flake ids are 128-bits wide described here from most significant to least significant bits.

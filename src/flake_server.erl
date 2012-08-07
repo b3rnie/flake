@@ -21,7 +21,6 @@
 
 %%%_* Exports ==========================================================
 -export([ start_link/1
-        , update_persisted_ts/1
         , id/0
         ]).
 
@@ -35,41 +34,39 @@
 
 %%%_* Code =============================================================
 %%%_ * Types -----------------------------------------------------------
--record(s, { interval          :: integer()
-           , last_persisted_ts :: integer()
-           , last_used_ts      :: integer()
-           , last_used_seqno   :: integer()
-           , mac_addr          :: binary()
+-record(s, { interval          = undefined              :: integer()
+           , last_persisted_ts = undefined              :: integer()
+           , last_used_ts      = flake_util:now_in_ms() :: integer()
+           , last_used_seqno   = 0                      :: integer()
+           , mac_addr          = undefined              :: binary()
            }).
 
 %%%_ * API -------------------------------------------------------------
 start_link(Args) ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
 
-update_persisted_ts(Ts) ->
-  gen_server:cast(?MODULE, {update_persisted_ts, Ts}).
-
 %% @doc generate a new snowflake id
 id() -> gen_server:call(?MODULE, get).
 
 %%%_ * gen_server callbacks --------------------------------------------
 init(_Args) ->
-  case flake_util:get_env([interface, interval]) of
-    {ok, [Interface, Interval]} ->
-      case flake_util:get_mac_addr(Interface) of
-        {ok, MacAddr} ->
-          {ok, #s{ mac_addr          = MacAddr
-                 , interval          = Interval
-                 , last_used_ts      = flake_util:now_in_ms()
-                 , last_used_seqno   = 0
-                 , last_persisted_ts = flake_time_server:get_ts()
-                 }};
-        {error, Rsn} ->
-          {stop, Rsn}
-      end;
+  {ok, Interface} = application:get_env(flake, interface),
+  {ok, Interval}  = application:get_env(flake, interval),
+  case flake_util:get_mac_addr(Interface) of
+    {ok, MacAddr} ->
+      {ok, Ts} = flake_time_server:subscribe(),
+      {ok, #s{ mac_addr          = MacAddr
+             , interval          = Interval
+             , last_persisted_ts = Ts
+             }};
     {error, Rsn} ->
       {stop, Rsn}
   end.
+
+terminate(_Rsn, _S) ->
+  flake_time_server:unsubsribe(),
+  
+  ok.
 
 handle_call(get, _From, #s{ last_used_ts      = LastTs
                           , last_used_seqno   = LastSeqno
@@ -94,18 +91,19 @@ handle_call(get, _From, #s{ last_used_ts      = LastTs
       end
   end.
 
-handle_cast({update_persisted_ts, Ts},
-            #s{last_persisted_ts = LastPersistedTs} = S) ->
+handle_cast(stop, S) ->
+  {stop, normal, S}.
+
+handle_info({ts, Ts}, #s{last_persisted_ts = LastPersistedTs} = S) ->
+  io:format("NEW TS: ~p~n", [Ts]),
+  io:format("OLD TS: ~p~n", [LastPersistedTs]),
   case Ts >= LastPersistedTs of
     true  -> {noreply, S#s{last_persisted_ts = Ts}};
     false -> {stop, clock_running_backwards, S}
-  end.
+  end;
 
 handle_info(_Info, S) ->
   {noreply, S}.
-
-terminate(_Rsn, _S) ->
-  ok.
 
 code_change(_OldVsn, S, _Extra) ->
   {ok, S}.
@@ -139,6 +137,35 @@ next_out_of_seqno_test() ->
   Ts = flake_util:now_in_ms(),
   {error, out_of_seqno} = next(Ts, Ts, 16#FFFF),
   ok.
+
+non_existing_mac_addr_test() ->
+  flake_test:test_init(),
+  {ok, Interface} = application:get_env(flake, interface),
+  application:set_env(flake, interface, dummy),
+  erlang:process_flag(trap_exit, true),
+  {error, interface_not_found} = start_link([]),
+  application:set_env(flake, interface, Interface),
+  flake_test:test_end().
+
+%% test that flake_server stops giving out id's
+%% after flake_time_server dies
+time_server_died_test() ->
+  flake_test:test_init(),
+  erlang:process_flag(trap_exit, true),
+  {ok, Interval} = application:get_env(flake, interval),
+  {ok, Pid1} = flake_time_server:start_link([]),
+  {ok, Pid2} = flake_server:start_link([]),
+  {ok, _Bin1} = flake:id_bin(),
+  exit(Pid1, die),
+  {ok, _Bin2} = flake:id_bin(),
+  timer:sleep(Interval),
+  {ok, _Bin3} = flake:id_bin(),
+  timer:sleep(Interval),
+  {error, clock_advanced} = flake:id_bin(),
+  {error, clock_advanced} = flake:id_bin(),
+  exit(Pid2, die),
+  timer:sleep(1),
+  flake_test:test_end().
 
 -else.
 -endif.

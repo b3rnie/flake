@@ -24,9 +24,6 @@
         , now_in_ms/0
         , get_mac_addr/1
         , integer_to_list/2
-        , get_env/1
-        , write_timestamp/2
-        , read_timestamp/1
         ]).
 
 %%%_* Code =============================================================
@@ -95,26 +92,6 @@ integer_to_list(I0, Base, R0) ->
   case I0 div Base of
     0  -> R1;
     I1 -> integer_to_list(I1, Base, R1)
-  end.
-
-get_env(Ks) ->
-  get_env(Ks, []).
-
-get_env([K|Ks], Acc) ->
-  case application:get_env(flake, K) of
-    {ok, V}   -> get_env(Ks, [V|Acc]);
-    undefined -> {error, {missing_env, K}}
-  end;
-get_env([], Acc) ->
-  {ok, lists:reverse(Acc)}.
-
-write_timestamp(File, Ts) ->
-  ok = file:write_file(File, erlang:term_to_binary(Ts)).
-
-read_timestamp(File) ->
-  case file:read_file(File) of
-    {ok, Bin}    -> {ok, erlang:binary_to_term(Bin)};
-    {error, Rsn} -> {error, Rsn}
   end.
 
 %%%_* Tests ============================================================

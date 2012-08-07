@@ -27,7 +27,6 @@
 
 %%%_* Code =============================================================
 %%%_ * API -------------------------------------------------------------
-
 %% @doc uid in binary format
 id_bin() ->
   flake_server:id().
@@ -51,6 +50,95 @@ id_int() ->
 %%%_* Tests ============================================================
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
+types_test() ->
+  flake_test:test_init(),
+  application:start(flake),
+  {ok, Bin} = flake:id_bin(),
+  {ok, Str} = flake:id_str(10),
+  {ok, Int} = flake:id_int(),
+
+  true = erlang:is_binary(Bin),
+  true = erlang:is_list(Str),
+  true = erlang:is_integer(Int),
+  application:stop(flake),
+  flake_test:test_end().
+
+-define(n, 10000).
+id_prop_sequential_test() ->
+  flake_test:test_init(),
+  ok = application:start(flake),
+  F = fun(_N, {Int0, Int1}) when Int0 < Int1 ->
+          {Int1, flake:id_int()}
+      end,
+  lists:foldl(F, {flake:id_int(), flake:id_int()}, lists:seq(1, ?n)),
+  application:stop(flake),
+  flake_test:test_end().
+
+id_prop_test() ->
+  flake_test:test_init(),
+  application:start(flake),
+  Ts1 = flake_util:now_in_ms(),
+  timer:sleep(1),
+  {ok, <<FlakeTs1:64/integer,
+         FlakeMac1:6/binary,
+         FlakeSeqno1:16/integer>>} = flake:id_bin(),
+  timer:sleep(1),
+  Ts2 = flake_util:now_in_ms(),
+  timer:sleep(1),
+  {ok, <<FlakeTs2:64/integer,
+         FlakeMac2:6/binary,
+         FlakeSeqno2:16/integer>>} = flake:id_bin(),
+  %% properties that should hold
+  true = Ts1 < FlakeTs1,
+  true = FlakeTs1 < Ts2,
+  true = Ts2 < FlakeTs2,
+  true = FlakeMac1 =:= FlakeMac2,
+  true = FlakeSeqno1 =:= 0,
+  true = FlakeSeqno2 =:= 0,
+  application:stop(flake),
+  flake_test:test_end().
+
+-define(processes, 16).
+-define(requests, 5000).
+parallell_test() ->
+  flake_test:test_init(),
+  application:start(flake),
+  Pids  = [start_worker(self()) || _N <- lists:seq(1, ?processes)],
+  Res   = [receive {Pid, Ids} -> Ids end || Pid <- Pids],
+  ?processes * ?requests = length(lists:usort(lists:concat(Res))),
+  application:stop(flake),
+  flake_test:test_end().
+
+start_worker(Daddy) ->
+  proc_lib:spawn_link(fun() -> run_worker(Daddy, ?requests, []) end).
+
+run_worker(Daddy, 0, Acc) -> Daddy ! {self(), Acc};
+run_worker(Daddy, N, Acc) ->
+  {ok, Bin} = flake:id_bin(),
+  run_worker(Daddy, N-1, [Bin|Acc]).
+
+time_server_updates_test() ->
+  flake_test:test_init(),
+  {ok, Interval} = application:get_env(flake, interval),
+  application:start(flake),
+  {ok, _Bin1} = flake:id_bin(),
+  timer:sleep(Interval * 2),
+  {ok, _Bin2} = flake:id_bin(),
+  application:stop(flake),
+  flake_test:test_end().
+
+%% test that delayed start works
+start_stop_test() ->
+  flake_test:test_init(),
+  application:start(flake),
+  {ok, _} = flake:id_bin(),
+  application:stop(flake),
+  application:start(flake),
+  {ok, _} = flake:id_bin(),
+  application:stop(flake),
+  timer:sleep(10),
+  flake_test:test_end().
 
 -else.
 -endif.

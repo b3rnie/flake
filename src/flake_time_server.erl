@@ -155,7 +155,7 @@ notify_subscribers(Ts, Subs) ->
   lists:foreach(fun({Pid, _Ref}) -> Pid ! {ts, Ts} end, Subs).
 
 %%%_* Tests ============================================================
--ifdef(TEST).
+-ifdef(EUNIT).
 
 %% start and fail with timestamp in the future
 clock_backwards_test() ->

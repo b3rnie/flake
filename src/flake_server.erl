@@ -122,7 +122,7 @@ next(OldTs, NewTs, _Seqno)
   when OldTs > NewTs       -> {error, clock_running_backwards}.
 
 %%%_* Tests ============================================================
--ifdef(TEST).
+-ifdef(EUNIT).
 
 next_test() ->
   flake_test:test_init(),

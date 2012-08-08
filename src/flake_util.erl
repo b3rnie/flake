@@ -98,7 +98,7 @@ integer_to_list(I0, Base, R0) ->
   end.
 
 %%%_* Tests ============================================================
--ifdef(TEST).
+-ifdef(EUNIT).
 
 mk_id_test() ->
   Ts    = now_in_ms(),

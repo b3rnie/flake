@@ -51,7 +51,7 @@ id_int() ->
   end.
 
 %%%_* Tests ============================================================
--ifdef(TEST).
+-ifdef(EUNIT).
 
 types_test() ->
   flake_test:test_init(),

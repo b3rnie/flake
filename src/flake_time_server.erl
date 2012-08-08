@@ -155,6 +155,7 @@ notify_subscribers(Ts, Subs) ->
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
+%% start and fail with timestamp in the future
 clock_backwards_test() ->
   flake_test:test_init(),
   erlang:process_flag(trap_exit, true),
@@ -163,6 +164,7 @@ clock_backwards_test() ->
   {error, clock_running_backwards} = flake_time_server:start_link([]),
   flake_test:test_end().
 
+%% start and fail due to too much downtime
 clock_advanced_test() ->
   flake_test:test_init(),
   erlang:process_flag(trap_exit, true),

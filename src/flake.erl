@@ -17,7 +17,7 @@
 %%% Refactored 2012 / Bjorn Jensen-Urstad
 
 %%%_* Module declaration ===============================================
--module (flake).
+-module(flake).
 
 %%%_* Exports ==========================================================
 -export([ id_bin/0
@@ -64,6 +64,7 @@ types_test() ->
   application:stop(flake),
   flake_test:test_end().
 
+%% test that id's are sequential
 -define(n, 10000).
 id_prop_sequential_test() ->
   flake_test:test_init(),
@@ -71,7 +72,9 @@ id_prop_sequential_test() ->
   F = fun(_N, {Int0, Int1}) when Int0 < Int1 ->
           {Int1, flake:id_int()}
       end,
-  lists:foldl(F, {flake:id_int(), flake:id_int()}, lists:seq(1, ?n)),
+  Int0 = flake:id_int(),
+  Int1 = flake:id_int(),
+  lists:foldl(F, {Int0, Int1}, lists:seq(1, ?n)),
   application:stop(flake),
   flake_test:test_end().
 
@@ -79,13 +82,13 @@ id_prop_test() ->
   flake_test:test_init(),
   application:start(flake),
   Ts1 = flake_util:now_in_ms(),
-  timer:sleep(1),
+  timer:sleep(2),
   {ok, <<FlakeTs1:64/integer,
          FlakeMac1:6/binary,
          FlakeSeqno1:16/integer>>} = flake:id_bin(),
-  timer:sleep(1),
+  timer:sleep(2),
   Ts2 = flake_util:now_in_ms(),
-  timer:sleep(1),
+  timer:sleep(2),
   {ok, <<FlakeTs2:64/integer,
          FlakeMac2:6/binary,
          FlakeSeqno2:16/integer>>} = flake:id_bin(),
@@ -99,6 +102,7 @@ id_prop_test() ->
   application:stop(flake),
   flake_test:test_end().
 
+%% generate a bunch of id's in parallell, check uniqueness
 -define(processes, 16).
 -define(requests, 5000).
 parallell_test() ->
@@ -111,19 +115,21 @@ parallell_test() ->
   flake_test:test_end().
 
 start_worker(Daddy) ->
-  proc_lib:spawn_link(fun() -> run_worker(Daddy, ?requests, []) end).
+  F = fun() ->
+          Daddy ! {self(), [begin
+                              {ok, Bin} = flake:id_bin(),
+                              Bin
+                            end || _N <- lists:seq(1, ?requests)]}
+      end,
+  proc_lib:spawn_link(F).
 
-run_worker(Daddy, 0, Acc) -> Daddy ! {self(), Acc};
-run_worker(Daddy, N, Acc) ->
-  {ok, Bin} = flake:id_bin(),
-  run_worker(Daddy, N-1, [Bin|Acc]).
 
 time_server_updates_test() ->
   flake_test:test_init(),
   {ok, Interval} = application:get_env(flake, interval),
   application:start(flake),
   {ok, _Bin1} = flake:id_bin(),
-  timer:sleep(Interval * 2),
+  timer:sleep(Interval * 2 + 1),
   {ok, _Bin2} = flake:id_bin(),
   application:stop(flake),
   flake_test:test_end().
@@ -147,7 +153,6 @@ stray_messages_test() ->
   {ok, _} = flake:id_bin(),
   application:stop(flake),
   flake_test:test_end().
-
 
 -else.
 -endif.

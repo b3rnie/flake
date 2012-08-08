@@ -110,14 +110,13 @@ code_change(_OldVsn, S, _Extra) ->
   {ok, S}.
 
 %%%_ * Internals -------------------------------------------------------
-next(OldTs, OldTs, Seqno) when Seqno >= 16#FFFF ->
-  {error, out_of_seqno};
-next(OldTs, OldTs, Seqno) ->
-  {ok, {OldTs, Seqno+1}};
-next(OldTs, NewTs, _Seqno) when OldTs < NewTs ->
-  {ok, {NewTs, 0}};
-next(OldTs, NewTs, _Seqno) when OldTs > NewTs ->
-  {error, clock_running_backwards}.
+next(OldTs, OldTs,  Seqno)
+  when Seqno >= 16#FFFF    -> {error, out_of_seqno};
+next(OldTs, OldTs,  Seqno) -> {ok, {OldTs, Seqno+1}};
+next(OldTs, NewTs, _Seqno)
+  when OldTs < NewTs       -> {ok, {NewTs, 0}};
+next(OldTs, NewTs, _Seqno)
+  when OldTs > NewTs       -> {error, clock_running_backwards}.
 
 %%%_* Tests ============================================================
 -ifdef(TEST).

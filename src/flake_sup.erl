@@ -16,7 +16,7 @@
 %%% Refactored 2012 / Bjorn Jensen-Urstad
 
 %%%_* Module declaration ===============================================
--module (flake_sup).
+-module(flake_sup).
 -behaviour(supervisor).
 
 %%%_* Exports ==========================================================

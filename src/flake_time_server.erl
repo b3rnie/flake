@@ -10,6 +10,7 @@
 
 %%%_* Exports ==========================================================
 -export([ start_link/1
+        , stop/0
         , subscribe/0
         , unsubscribe/0
         ]).
@@ -35,6 +36,9 @@
 start_link(Args) ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
 
+stop() ->
+  gen_server:cast(?MODULE, stop).
+
 subscribe() ->
   gen_server:call(?MODULE, subscribe, infinity).
 
@@ -47,7 +51,7 @@ init(_Args) ->
   {ok, Path}     = application:get_env(flake, timestamp_path),
   {ok, Downtime} = application:get_env(flake, allowable_downtime),
   {ok, Interval} = application:get_env(flake, interval),
-  
+
   case filelib:is_file(real_file(Path)) of
     true  -> do_init_old(Path, Downtime, Interval);
     false -> do_init_new(Path, Downtime, Interval)
@@ -59,7 +63,7 @@ terminate(_Rsn, #s{tref=TRef}) ->
 
 handle_call(subscribe, {Pid, _} = _From, #s{subs=Subs} = S) ->
   case lists:keyfind(Pid, 1, Subs) of
-    {value, {Pid, _Ref}} ->
+    {Pid, _Ref} ->
       {reply, {error, already_subscribed}, S};
     false ->
       Ref = erlang:monitor(process, Pid),
@@ -100,8 +104,6 @@ code_change(_OldVsn, S, _Extra) ->
 do_init_old(Path, Downtime, Interval) ->
   Now  = flake_util:now_in_ms(),
   Then = read_ts(Path),
-  io:format("NOW: ~p~n", [Now]),
-  io:format("THEN: ~p~n", [Then]),
   if Then > Now            -> {stop, clock_running_backwards};
      Now - Then > Downtime -> {stop, clock_advanced};
      true ->
@@ -155,18 +157,18 @@ notify_subscribers(Ts, Subs) ->
 
 clock_backwards_test() ->
   flake_test:test_init(),
+  erlang:process_flag(trap_exit, true),
   {ok, Path} = application:get_env(flake, timestamp_path),
   write_ts(Path, flake_util:now_in_ms() + 5000),
-  erlang:process_flag(trap_exit, true),
   {error, clock_running_backwards} = flake_time_server:start_link([]),
   flake_test:test_end().
 
 clock_advanced_test() ->
   flake_test:test_init(),
+  erlang:process_flag(trap_exit, true),
   {ok, Path}     = application:get_env(flake, timestamp_path),
   {ok, Downtime} = application:get_env(flake, allowable_downtime),
   write_ts(Path, flake_util:now_in_ms() - Downtime -1),
-  erlang:process_flag(trap_exit, true),
   {error, clock_advanced} = flake_time_server:start_link([]),
   flake_test:test_end().
 
@@ -184,13 +186,19 @@ rw_timestamp_test() ->
 subscriber_test() ->
   flake_test:test_init(),
   erlang:process_flag(trap_exit, true),
-  {ok, Pid1} = flake_time_server:start_link([]),
-  {ok, Pid2} = flake_server:start_link([]),
-  exit(Pid2, die),
-  timer:sleep(10),
-  {ok, Pid3} = flake_server:start_link([]),
-  exit(Pid3, die),
-  exit(Pid1, die),
+  {ok, _} = flake_time_server:start_link([]),
+  {error, not_subscribed} = flake_time_server:unsubscribe(),
+  {ok, _} = flake_time_server:subscribe(),
+  {error, already_subscribed} = flake_time_server:subscribe(),
+  ok = flake_time_server:unsubscribe(),
+  {ok, _} = flake_server:start_link([]),
+  exit(whereis(flake_server), die),
+  flake_test:until_unregistered(flake_server),
+  {ok, _} = flake_server:start_link([]),
+  flake_server:stop(),
+  flake_test:until_unregistered(flake_server),
+  exit(whereis(flake_time_server), die),
+  flake_test:until_unregistered(flake_time_server),
   flake_test:test_end().
 
 -else.

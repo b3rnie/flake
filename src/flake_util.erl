@@ -120,6 +120,14 @@ integer_to_list_base2_32_test() ->
                     ?assertEqual(R0, R1)
                 end, lists:seq(1, 500)).
 
+integer_to_list_base62_test() ->
+  "A"   = integer_to_list(10, 62),
+  "H"   = integer_to_list(17, 62),
+  "1c"  = integer_to_list(100, 62),
+  "G8"  = integer_to_list(1000, 62),
+  "2bI" = integer_to_list(10000, 62),
+  ok.
+
 any_interface_test() ->
   {ok, <<_Mac:6/binary>>} = get_mac_addr(any),
   ok.

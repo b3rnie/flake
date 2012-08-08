@@ -137,8 +137,17 @@ start_stop_test() ->
   application:start(flake),
   {ok, _} = flake:id_bin(),
   application:stop(flake),
-  timer:sleep(10),
   flake_test:test_end().
+
+stray_messages_test() ->
+  flake_test:test_init(),
+  application:start(flake),
+  whereis(flake_server) ! foo,
+  whereis(flake_time_server) ! baz,
+  {ok, _} = flake:id_bin(),
+  application:stop(flake),
+  flake_test:test_end().
+
 
 -else.
 -endif.

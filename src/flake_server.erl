@@ -21,6 +21,7 @@
 
 %%%_* Exports ==========================================================
 -export([ start_link/1
+        , stop/0
         , id/0
         ]).
 
@@ -45,6 +46,9 @@
 start_link(Args) ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
 
+stop() ->
+  gen_server:cast(?MODULE, stop).
+
 %% @doc generate a new snowflake id
 id() -> gen_server:call(?MODULE, get).
 
@@ -64,8 +68,7 @@ init(_Args) ->
   end.
 
 terminate(_Rsn, _S) ->
-  flake_time_server:unsubsribe(),
-  
+  _ = flake_time_server:unsubscribe(),
   ok.
 
 handle_call(get, _From, #s{ last_used_ts      = LastTs
@@ -95,8 +98,6 @@ handle_cast(stop, S) ->
   {stop, normal, S}.
 
 handle_info({ts, Ts}, #s{last_persisted_ts = LastPersistedTs} = S) ->
-  io:format("NEW TS: ~p~n", [Ts]),
-  io:format("OLD TS: ~p~n", [LastPersistedTs]),
   case Ts >= LastPersistedTs of
     true  -> {noreply, S#s{last_persisted_ts = Ts}};
     false -> {stop, clock_running_backwards, S}
@@ -123,6 +124,7 @@ next(OldTs, NewTs, _Seqno) when OldTs > NewTs ->
 -include_lib("eunit/include/eunit.hrl").
 
 next_test() ->
+  flake_test:test_init(),
   Ts0 = flake_util:now_in_ms(),
   Ts1 = Ts0 + 1,
   {ok, {Ts0, 1}} = next(Ts0, Ts0, 0),
@@ -131,19 +133,15 @@ next_test() ->
   {ok, {Ts1, 0}} = next(Ts0, Ts1, 1),
   {error, clock_running_backwards} = next(Ts1, Ts0, 0),
   {error, clock_running_backwards} = next(Ts1, Ts0, 1),
-  ok.
-
-next_out_of_seqno_test() ->
-  Ts = flake_util:now_in_ms(),
-  {error, out_of_seqno} = next(Ts, Ts, 16#FFFF),
-  ok.
+  {error, out_of_seqno}            = next(Ts1, Ts1, 16#FFFF),
+  flake_test:test_end().
 
 non_existing_mac_addr_test() ->
   flake_test:test_init(),
+  erlang:process_flag(trap_exit, true),
   {ok, Interface} = application:get_env(flake, interface),
   application:set_env(flake, interface, dummy),
-  erlang:process_flag(trap_exit, true),
-  {error, interface_not_found} = start_link([]),
+  {error, interface_not_found} = flake_server:start_link([]),
   application:set_env(flake, interface, Interface),
   flake_test:test_end().
 
@@ -153,18 +151,29 @@ time_server_died_test() ->
   flake_test:test_init(),
   erlang:process_flag(trap_exit, true),
   {ok, Interval} = application:get_env(flake, interval),
-  {ok, Pid1} = flake_time_server:start_link([]),
-  {ok, Pid2} = flake_server:start_link([]),
+  {ok, _} = flake_time_server:start_link([]),
+  {ok, _} = flake_server:start_link([]),
   {ok, _Bin1} = flake:id_bin(),
-  exit(Pid1, die),
+  exit(whereis(flake_time_server), die),
   {ok, _Bin2} = flake:id_bin(),
   timer:sleep(Interval),
   {ok, _Bin3} = flake:id_bin(),
-  timer:sleep(Interval),
+  timer:sleep(Interval+1),
   {error, clock_advanced} = flake:id_bin(),
   {error, clock_advanced} = flake:id_bin(),
-  exit(Pid2, die),
-  timer:sleep(1),
+  exit(whereis(flake_server), die),
+  flake_test:until_unregistered(flake_server),
+  flake_test:test_end().
+
+clock_backwards_test() ->
+  flake_test:test_init(),
+  erlang:process_flag(trap_exit, true),
+  {ok, _} = flake_time_server:start_link([]),
+  {ok, _} = flake_server:start_link([]),
+  whereis(flake_server) ! {ts, flake_util:now_in_ms() - 5000},
+  flake_test:until_unregistered(flake_server),
+  flake_time_server:stop(),
+  flake_test:until_unregistered(flake_time_server),
   flake_test:test_end().
 
 -else.

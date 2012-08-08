@@ -1,6 +1,5 @@
 -module(flake_test).
 
--ifdef(TEST).
 -export([ test_init/0
         , test_end/0
         , until_unregistered/1
@@ -25,8 +24,6 @@ until_unregistered(Name) ->
            until_unregistered(Name)
   end.
 
--else.
--endif.
 
 %%%_* Emacs ============================================================
 %%% Local Variables:

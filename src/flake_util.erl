@@ -26,6 +26,9 @@
         , integer_to_list/2
         ]).
 
+%%%_* Includes =========================================================
+-include_lib("eunit/include/eunit.hrl").
+
 %%%_* Code =============================================================
 %%%_ * API -------------------------------------------------------------
 %% @doc mac addr as a 6 byte binary
@@ -96,7 +99,6 @@ integer_to_list(I0, Base, R0) ->
 
 %%%_* Tests ============================================================
 -ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
 
 mk_id_test() ->
   Ts    = now_in_ms(),

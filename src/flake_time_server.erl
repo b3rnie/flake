@@ -25,6 +25,9 @@
 
 -export([real_file/1]). %% testing
 
+%%%_* Includes =========================================================
+-include_lib("eunit/include/eunit.hrl").
+
 %%%_* Code =============================================================
 %%%_ * Types -----------------------------------------------------------
 -record(s, { path      :: list()
@@ -153,7 +156,6 @@ notify_subscribers(Ts, Subs) ->
 
 %%%_* Tests ============================================================
 -ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
 
 %% start and fail with timestamp in the future
 clock_backwards_test() ->

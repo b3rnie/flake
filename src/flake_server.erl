@@ -33,6 +33,9 @@
         , code_change/3
         ]).
 
+%%%_* Includes =========================================================
+-include_lib("eunit/include/eunit.hrl").
+
 %%%_* Code =============================================================
 %%%_ * Types -----------------------------------------------------------
 -record(s, { interval          = undefined              :: integer()
@@ -120,7 +123,6 @@ next(OldTs, NewTs, _Seqno)
 
 %%%_* Tests ============================================================
 -ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
 
 next_test() ->
   flake_test:test_init(),

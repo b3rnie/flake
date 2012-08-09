@@ -54,7 +54,7 @@ id_int() ->
 -ifdef(EUNIT).
 
 types_test() ->
-  flake_test:test_init(),
+  Oldenv = flake_test:test_init(),
   application:start(flake),
   {ok, Bin} = flake:id_bin(),
   {ok, Str} = flake:id_str(10),
@@ -64,12 +64,12 @@ types_test() ->
   true = erlang:is_list(Str),
   true = erlang:is_integer(Int),
   application:stop(flake),
-  flake_test:test_end().
+  flake_test:test_end(Oldenv).
 
 %% test that id's are sequential
 -define(n, 10000).
 id_prop_sequential_test() ->
-  flake_test:test_init(),
+  Oldenv = flake_test:test_init(),
   ok = application:start(flake),
   F = fun(_N, {Int0, Int1}) when Int0 < Int1 ->
           {Int1, flake:id_int()}
@@ -78,10 +78,10 @@ id_prop_sequential_test() ->
   Int1 = flake:id_int(),
   lists:foldl(F, {Int0, Int1}, lists:seq(1, ?n)),
   application:stop(flake),
-  flake_test:test_end().
+  flake_test:test_end(Oldenv).
 
 id_prop_test() ->
-  flake_test:test_init(),
+  Oldenv = flake_test:test_init(),
   application:start(flake),
   Ts1 = flake_util:now_in_ms(),
   timer:sleep(2),
@@ -102,19 +102,19 @@ id_prop_test() ->
   true = FlakeSeqno1 =:= 0,
   true = FlakeSeqno2 =:= 0,
   application:stop(flake),
-  flake_test:test_end().
+  flake_test:test_end(Oldenv).
 
 %% generate a bunch of id's in parallell, check uniqueness
 -define(processes, 16).
 -define(requests, 5000).
 parallell_test() ->
-  flake_test:test_init(),
+  Oldenv = flake_test:test_init(),
   application:start(flake),
   Pids  = [start_worker(self()) || _N <- lists:seq(1, ?processes)],
   Res   = [receive {Pid, Ids} -> Ids end || Pid <- Pids],
   ?processes * ?requests = length(lists:usort(lists:concat(Res))),
   application:stop(flake),
-  flake_test:test_end().
+  flake_test:test_end(Oldenv).
 
 start_worker(Daddy) ->
   F = fun() ->
@@ -127,34 +127,36 @@ start_worker(Daddy) ->
 
 
 time_server_updates_test() ->
-  flake_test:test_init(),
-  {ok, Interval} = application:get_env(flake, interval),
+  Oldenv = flake_test:test_init(),
+  Interval = 1000,
+  application:set_env(flake, interval, Interval),
   application:start(flake),
   {ok, _Bin1} = flake:id_bin(),
   timer:sleep(Interval * 2 + 1),
   {ok, _Bin2} = flake:id_bin(),
   application:stop(flake),
-  flake_test:test_end().
+  flake_test:test_end(Oldenv).
 
 %% test that delayed start works
 start_stop_test() ->
-  flake_test:test_init(),
+  Oldenv = flake_test:test_init(),
+  application:set_env(flake, interval, 1000),
   application:start(flake),
   {ok, _} = flake:id_bin(),
   application:stop(flake),
   application:start(flake),
   {ok, _} = flake:id_bin(),
   application:stop(flake),
-  flake_test:test_end().
+  flake_test:test_end(Oldenv).
 
 stray_messages_test() ->
-  flake_test:test_init(),
+  Oldenv = flake_test:test_init(),
   application:start(flake),
   whereis(flake_server) ! foo,
   whereis(flake_time_server) ! baz,
   {ok, _} = flake:id_bin(),
   application:stop(flake),
-  flake_test:test_end().
+  flake_test:test_end(Oldenv).
 
 -else.
 -endif.

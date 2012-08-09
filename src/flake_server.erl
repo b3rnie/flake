@@ -125,7 +125,7 @@ next(OldTs, NewTs, _Seqno)
 -ifdef(EUNIT).
 
 next_test() ->
-  flake_test:test_init(),
+  Oldenv = flake_test:test_init(),
   Ts0 = flake_util:now_in_ms(),
   Ts1 = Ts0 + 1,
   {ok, {Ts0, 1}} = next(Ts0, Ts0, 0),
@@ -135,23 +135,22 @@ next_test() ->
   {error, clock_running_backwards} = next(Ts1, Ts0, 0),
   {error, clock_running_backwards} = next(Ts1, Ts0, 1),
   {error, out_of_seqno}            = next(Ts1, Ts1, 16#FFFF),
-  flake_test:test_end().
+  flake_test:test_end(Oldenv).
 
 non_existing_mac_addr_test() ->
-  flake_test:test_init(),
+  Oldenv = flake_test:test_init(),
   erlang:process_flag(trap_exit, true),
-  {ok, Interface} = application:get_env(flake, interface),
   application:set_env(flake, interface, dummy),
   {error, interface_not_found} = flake_server:start_link([]),
-  application:set_env(flake, interface, Interface),
-  flake_test:test_end().
+  flake_test:test_end(Oldenv).
 
 %% test that flake_server stops giving out id's
 %% after flake_time_server dies
 time_server_died_test() ->
-  flake_test:test_init(),
+  Oldenv = flake_test:test_init(),
   erlang:process_flag(trap_exit, true),
-  {ok, Interval} = application:get_env(flake, interval),
+  Interval = 1000,
+  application:set_env(flake, interval, Interval),
   {ok, _} = flake_time_server:start_link([]),
   {ok, _} = flake_server:start_link([]),
   {ok, _Bin1} = flake:id_bin(),
@@ -164,10 +163,10 @@ time_server_died_test() ->
   {error, clock_advanced} = flake:id_bin(),
   exit(whereis(flake_server), die),
   flake_test:until_unregistered(flake_server),
-  flake_test:test_end().
+  flake_test:test_end(Oldenv).
 
 clock_backwards_test() ->
-  flake_test:test_init(),
+  Oldenv = flake_test:test_init(),
   erlang:process_flag(trap_exit, true),
   {ok, _} = flake_time_server:start_link([]),
   {ok, _} = flake_server:start_link([]),
@@ -175,7 +174,7 @@ clock_backwards_test() ->
   flake_test:until_unregistered(flake_server),
   flake_time_server:stop(),
   flake_test:until_unregistered(flake_time_server),
-  flake_test:test_end().
+  flake_test:test_end(Oldenv).
 
 -else.
 -endif.

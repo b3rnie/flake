@@ -1,7 +1,7 @@
 -module(flake_test).
 
 -export([ test_init/0
-        , test_end/0
+        , test_end/1
         , until_unregistered/1
         ]).
 
@@ -10,9 +10,12 @@ test_init() ->
   {ok, Path} = application:get_env(flake, timestamp_path),
   ok = filelib:ensure_dir(filename:join([Path, "dummy"])),
   file:delete(flake_time_server:real_file(Path)),
-  ok.
+  application:get_all_env(flake).
 
-test_end() ->
+test_end(Oldenv) ->
+  lists:foreach(fun({K,V}) ->
+                    application:set_env(flake, K, V)
+                end, Oldenv),
   {ok, Path} = application:get_env(flake, timestamp_path),
   file:delete(flake_time_server:real_file(Path)),
   ok.

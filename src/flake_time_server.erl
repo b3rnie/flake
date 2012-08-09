@@ -159,25 +159,25 @@ notify_subscribers(Ts, Subs) ->
 
 %% start and fail with timestamp in the future
 clock_backwards_test() ->
-  flake_test:test_init(),
+  Oldenv = flake_test:test_init(),
   erlang:process_flag(trap_exit, true),
   {ok, Path} = application:get_env(flake, timestamp_path),
   write_ts(Path, flake_util:now_in_ms() + 5000),
   {error, clock_running_backwards} = flake_time_server:start_link([]),
-  flake_test:test_end().
+  flake_test:test_end(Oldenv).
 
 %% start and fail due to too much downtime
 clock_advanced_test() ->
-  flake_test:test_init(),
+  Oldenv = flake_test:test_init(),
   erlang:process_flag(trap_exit, true),
   {ok, Path}     = application:get_env(flake, timestamp_path),
   {ok, Downtime} = application:get_env(flake, allowable_downtime),
   write_ts(Path, flake_util:now_in_ms() - Downtime -1),
   {error, clock_advanced} = flake_time_server:start_link([]),
-  flake_test:test_end().
+  flake_test:test_end(Oldenv).
 
 rw_timestamp_test() ->
-  flake_test:test_init(),
+  Oldenv = flake_test:test_init(),
   {ok, Path} = application:get_env(flake, timestamp_path),
   Ts0             = 0,
   Ts1             = 1,
@@ -185,10 +185,10 @@ rw_timestamp_test() ->
   Ts0 = read_ts(Path),
   ok  = write_ts(Path, Ts1),
   Ts1 = read_ts(Path),
-  flake_test:test_end().
+  flake_test:test_end(Oldenv).
 
 subscriber_test() ->
-  flake_test:test_init(),
+  Oldenv = flake_test:test_init(),
   erlang:process_flag(trap_exit, true),
   {ok, _} = flake_time_server:start_link([]),
   {error, not_subscribed} = flake_time_server:unsubscribe(),
@@ -203,7 +203,7 @@ subscriber_test() ->
   flake_test:until_unregistered(flake_server),
   exit(whereis(flake_time_server), die),
   flake_test:until_unregistered(flake_time_server),
-  flake_test:test_end().
+  flake_test:test_end(Oldenv).
 
 -else.
 -endif.

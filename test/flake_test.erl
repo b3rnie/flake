@@ -7,6 +7,7 @@
 
 test_init() ->
   application:load(flake),
+  application:stop(flake),
   {ok, Path} = application:get_env(flake, timestamp_path),
   ok = filelib:ensure_dir(filename:join([Path, "dummy"])),
   file:delete(flake_time_server:real_file(Path)),
@@ -18,6 +19,7 @@ test_end(Oldenv) ->
                 end, Oldenv),
   {ok, Path} = application:get_env(flake, timestamp_path),
   file:delete(flake_time_server:real_file(Path)),
+  application:start(flake),
   ok.
 
 until_unregistered(Name) ->

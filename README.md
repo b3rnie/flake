@@ -27,7 +27,7 @@ Example configuration:
 	[
 	 {flake, [
 	    {interface, "en0"},
-	    {timestamp_file, "/srv/flake/timestamp.flake"},
+	    {timestamp_path,     "/srv/flake/"},
 	    {allowable_downtime, 2592000000},
             {interval,           1000}
 	  ]}

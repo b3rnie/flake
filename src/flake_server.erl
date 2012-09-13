@@ -162,18 +162,18 @@ time_server_died_test() ->
           {error, clock_advanced} = flake:id_bin(),
           exit(whereis(flake_server), die)
       end,
-  flake_test:clean_env(flake_util:default_env(), F).
+  flake_test:clean_env(F).
 
 clock_backwards_test() ->
   F = fun() ->
           erlang:process_flag(trap_exit, true),
-          {ok, _} = flake_time_server:start_link(),
-          {ok, _} = flake_server:start_link(),
-          whereis(flake_server) ! {ts, flake_util:now_in_ms() - 5000},
-          flake_time_server:stop(),
-          receive {'EXIT', Pid, clock_running_backwards} -> ok end
+          {ok, _}   = flake_time_server:start_link(),
+          {ok, Pid} = flake_server:start_link(),
+          Pid ! {ts, flake_util:now_in_ms() - 5000},
+          receive {'EXIT', Pid, clock_running_backwards} -> ok end,
+          flake_time_server:stop()
       end,
-  flake_test:clean_env(flake_util:default_env(), F).
+  flake_test:clean_env(F).
 
 -else.
 -endif.

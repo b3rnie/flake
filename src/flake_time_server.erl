@@ -164,7 +164,7 @@ clock_backwards_test() ->
           write_ts(Path, flake_util:now_in_ms() + 5000),
           {error, clock_running_backwards} = flake_time_server:start_link()
       end,
-  flake_test:clean_env(flake_util:default_env(), F).
+  flake_test:clean_env(F).
 
 %% start and fail due to too much downtime
 clock_advanced_test() ->
@@ -175,7 +175,7 @@ clock_advanced_test() ->
           write_ts(Path, flake_util:now_in_ms() - Downtime -1),
           {error, clock_advanced} = flake_time_server:start_link()
       end,
-  flake_test:clean_env(flake_util:default_env(), F).
+  flake_test:clean_env(F).
 
 rw_timestamp_test() ->
   F = fun() ->
@@ -187,7 +187,7 @@ rw_timestamp_test() ->
           ok  = write_ts(Path, Ts1),
           Ts1 = read_ts(Path)
       end,
-  flake_test:clean_env(flake_util:default_env(), F).
+  flake_test:clean_env(F).
 
 subscriber_test() ->
   F = fun() ->
@@ -197,14 +197,14 @@ subscriber_test() ->
           {ok, _} = flake_time_server:subscribe(),
           {error, already_subscribed} = flake_time_server:subscribe(),
           ok = flake_time_server:unsubscribe(),
-          {ok, _} = flake_server:start_link(),
-          exit(whereis(flake_server), die),
+          {ok, Pid1} = flake_server:start_link(),
+          exit(Pid1, die),
           flake_test:wait_unregistered([flake_server]),
           {ok, _} = flake_server:start_link(),
           flake_server:stop(),
-          exit(whereis(flake_time_server), die)
+          flake_time_server:stop()
       end,
-  flake_test:clean_env(flake_util:default_env(), F).
+  flake_test:clean_env(F).
 
 -else.
 -endif.

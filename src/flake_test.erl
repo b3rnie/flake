@@ -2,19 +2,28 @@
 -module(flake_test).
 
 %%%_* Exports ==========================================================
--export([ with_env/2
+-export([ with_env/1
+        , with_env/2
+        , clean_env/1
         , clean_env/2
         , wait_unregistered/1
         ]).
 
+%%%_* Code =============================================================
+%%%_ * API -------------------------------------------------------------
+with_env(Fun) ->
+  in_env(flake_util:default_env(), Fun, true).
+
 with_env(Env, Fun) ->
   in_env(Env, Fun, true).
+
+clean_env(Fun) ->
+  in_env(flake_util:default_env(), Fun, false).
 
 clean_env(Env, Fun) ->
   in_env(Env, Fun, false).
 
 in_env(Env, Fun, Start) ->
-  application:load(flake),
   OldEnv  = application:get_all_env(flake),
   Running = application:which_applications(),
   try
@@ -32,8 +41,10 @@ in_env(Env, Fun, Start) ->
 
 stop_app(App) ->
   application:stop(App),
-  {ok, Names} = application:get_key(App, registered),
-  wait_unregistered(Names).
+  case application:get_key(App, registered) of
+    {ok, Names} -> wait_unregistered(Names);
+    undefined   -> ok
+  end.
 
 wait_unregistered([N|Ns]) ->
   case whereis(N) of
@@ -43,7 +54,6 @@ wait_unregistered([N|Ns]) ->
 wait_unregistered([]) -> ok.
 
 setenv(App, Env, OldEnv) ->
-  io:format("ENV: ~p~n", [Env]),
   UnsetF = fun({K,_}) -> application:unset_env(App, K) end,
   SetF   = fun({K,V}) -> application:set_env(App, K, V) end,
   lists:foreach(UnsetF, OldEnv),

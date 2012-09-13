@@ -3,15 +3,11 @@
   {description, "flake"},
   {vsn, "0.7"},
   {modules, []},
-  {registered, []},
+  {registered, [flake_sup, flake_server, flake_time_server]},
   {applications, [
                   kernel,
                   stdlib
                  ]},
   {mod, { flake_app, []}},
-  {env, [ {interface,          any}
-        , {timestamp_path,     "/tmp/flake"}
-        , {allowable_downtime, 2592000000}
-        , {interval,           1000}
-        ]}
+  {env, []}
 ]}.

@@ -52,107 +52,102 @@ id_int() ->
 -include_lib("eunit/include/eunit.hrl").
 
 types_test() ->
-  flake_test:test_init(),
-  application:start(flake),
-  {ok, Bin} = flake:id_bin(),
-  {ok, Str} = flake:id_str(10),
-  {ok, Int} = flake:id_int(),
-
-  true = erlang:is_binary(Bin),
-  true = erlang:is_list(Str),
-  true = erlang:is_integer(Int),
-  application:stop(flake),
-  flake_test:test_end().
+  F = fun() ->
+          {ok, Bin} = flake:id_bin(),
+          {ok, Str} = flake:id_str(10),
+          {ok, Int} = flake:id_int(),
+          true = erlang:is_binary(Bin),
+          true = erlang:is_list(Str),
+          true = erlang:is_integer(Int)
+      end,
+  flake_test:with_env(flake_util:default_env(), F).
 
 %% test that id's are sequential
 -define(n, 10000).
-id_prop_sequential_test() ->
-  flake_test:test_init(),
-  ok = application:start(flake),
-  F = fun(_N, {Int0, Int1}) when Int0 < Int1 ->
-          {Int1, flake:id_int()}
+sequential_test() ->
+  F = fun() ->
+          F2 = fun(_N, {Int0, Int1}) when Int0 < Int1 ->
+                   {Int1, flake:id_int()}
+               end,
+          Int0 = flake:id_int(),
+          Int1 = flake:id_int(),
+          lists:foldl(F2, {Int0, Int1}, lists:seq(1, ?n))
       end,
-  Int0 = flake:id_int(),
-  Int1 = flake:id_int(),
-  lists:foldl(F, {Int0, Int1}, lists:seq(1, ?n)),
-  application:stop(flake),
-  flake_test:test_end().
+  flake_test:with_env(flake_util:default_env(), F).
 
-id_prop_test() ->
-  flake_test:test_init(),
-  application:start(flake),
-  Ts1 = flake_util:now_in_ms(),
-  timer:sleep(2),
-  {ok, <<FlakeTs1:64/integer,
-         FlakeMac1:6/binary,
-         FlakeSeqno1:16/integer>>} = flake:id_bin(),
-  timer:sleep(2),
-  Ts2 = flake_util:now_in_ms(),
-  timer:sleep(2),
-  {ok, <<FlakeTs2:64/integer,
-         FlakeMac2:6/binary,
-         FlakeSeqno2:16/integer>>} = flake:id_bin(),
-  %% properties that should hold
-  true = Ts1 < FlakeTs1,
-  true = FlakeTs1 < Ts2,
-  true = Ts2 < FlakeTs2,
-  true = FlakeMac1 =:= FlakeMac2,
-  true = FlakeSeqno1 =:= 0,
-  true = FlakeSeqno2 =:= 0,
-  application:stop(flake),
-  flake_test:test_end().
+properties_test() ->
+  F = fun() ->
+          Ts1 = flake_util:now_in_ms(),
+          timer:sleep(2),
+          {ok, <<FlakeTs1:64/integer,
+                 FlakeMac1:6/binary,
+                 FlakeSeqno1:16/integer>>} = flake:id_bin(),
+          timer:sleep(2),
+          Ts2 = flake_util:now_in_ms(),
+          timer:sleep(2),
+          {ok, <<FlakeTs2:64/integer,
+                 FlakeMac2:6/binary,
+                 FlakeSeqno2:16/integer>>} = flake:id_bin(),
+          %% properties that should hold
+          true = Ts1 < FlakeTs1,
+          true = FlakeTs1 < Ts2,
+          true = Ts2 < FlakeTs2,
+          true = FlakeMac1 =:= FlakeMac2,
+          true = FlakeSeqno1 =:= 0,
+          true = FlakeSeqno2 =:= 0
+      end,
+  flake_test:with_env(flake_util:default_env(), F).
 
 %% generate a bunch of id's in parallell, check uniqueness
 -define(processes, 16).
 -define(requests, 5000).
 parallell_test() ->
-  flake_test:test_init(),
-  application:start(flake),
-  Pids  = [start_worker(self()) || _N <- lists:seq(1, ?processes)],
-  Res   = [receive {Pid, Ids} -> Ids end || Pid <- Pids],
-  ?processes * ?requests = length(lists:usort(lists:concat(Res))),
-  application:stop(flake),
-  flake_test:test_end().
+  F = fun() ->
+          Ws    = lists:seq(1, ?processes),
+          Pids  = [start_worker(self()) || _N <- Ws],
+          Res   = [receive {Pid, Ids} -> Ids end || Pid <- Pids],
+          ?processes * ?requests =
+            length(lists:usort(lists:concat(Res)))
+      end,
+  flake_test:with_env(flake_util:default_env(), F).
 
 start_worker(Daddy) ->
   F = fun() ->
-          Daddy ! {self(), [begin
+          Res = lists:map(fun(_N) ->
                               {ok, Bin} = flake:id_bin(),
                               Bin
-                            end || _N <- lists:seq(1, ?requests)]}
+                          end, lists:seq(1, ?requests)),
+          Daddy ! {self(), Res}
       end,
   proc_lib:spawn_link(F).
 
 
 time_server_updates_test() ->
-  flake_test:test_init(),
-  {ok, Interval} = application:get_env(flake, interval),
-  application:start(flake),
-  {ok, _Bin1} = flake:id_bin(),
-  timer:sleep(Interval * 2 + 1),
-  {ok, _Bin2} = flake:id_bin(),
-  application:stop(flake),
-  flake_test:test_end().
+  F = fun() ->
+          {ok, Interval} = application:get_env(flake, interval),
+          {ok, _Bin1} = flake:id_bin(),
+          timer:sleep(Interval * 2 + 1),
+          {ok, _Bin2} = flake:id_bin()
+      end,
+  flake_test:with_env(flake_util:default_env(), F).
 
 %% test that delayed start works
 start_stop_test() ->
-  flake_test:test_init(),
-  application:start(flake),
-  {ok, _} = flake:id_bin(),
-  application:stop(flake),
-  application:start(flake),
-  {ok, _} = flake:id_bin(),
-  application:stop(flake),
-  flake_test:test_end().
+  F = fun() ->
+          {ok, _} = flake:id_bin(),
+          application:stop(flake),
+          application:start(flake),
+          {ok, _} = flake:id_bin()
+      end,
+  flake_test:with_env(flake_util:default_env(), F).
 
 stray_messages_test() ->
-  flake_test:test_init(),
-  application:start(flake),
-  whereis(flake_server) ! foo,
-  whereis(flake_time_server) ! baz,
-  {ok, _} = flake:id_bin(),
-  application:stop(flake),
-  flake_test:test_end().
+  F = fun() ->
+          whereis(flake_server) ! foo,
+          whereis(flake_time_server) ! bar,
+          {ok, _} = flake:id_bin()
+      end,
+  flake_test:with_env(flake_util:default_env(), F).
 
 -else.
 -endif.

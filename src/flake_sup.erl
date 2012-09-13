@@ -28,7 +28,7 @@
 start_link() ->
   supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-init(_Args) ->
+init([]) ->
   %% 1. always generate unique id's
   %% 2. be fast and efficient
   %%
@@ -51,9 +51,9 @@ init(_Args) ->
   %% or running backwards. This is handled by delaying
   %% startup to guarantee unique id's.
   RestartStrategy = {one_for_all, 4, 60},
-  Kids = [ {flake_time_server, {flake_time_server, start_link, [[]]},
+  Kids = [ {flake_time_server, {flake_time_server, start_link, []},
             permanent, 5000, worker, [flake_time_server]}
-         , {flake_server, {flake_server, start_link, [[]]},
+         , {flake_server, {flake_server, start_link, []},
             permanent, 5000, worker, [flake_server]}
          ],
   {ok, {RestartStrategy, Kids}}.

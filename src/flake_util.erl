@@ -24,7 +24,12 @@
         , now_in_ms/0
         , get_mac_addr/1
         , integer_to_list/2
+        , get_env/2
+        , default_env/0
         ]).
+
+%%%_* Includes =========================================================
+-include_lib("flake/include/flake.hrl").
 
 %%%_* Code =============================================================
 %%%_ * API -------------------------------------------------------------
@@ -94,11 +99,24 @@ integer_to_list(I0, Base, R0) ->
     I1 -> integer_to_list(I1, Base, R1)
   end.
 
+get_env(Key, Def) ->
+  case application:get_env(flake, Key) of
+    {ok, Val} -> Val;
+    undefined -> Def
+  end.
+
+default_env() ->
+  [ {interface,          ?interface}
+  , {interval,           ?interval}
+  , {timestamp_path,     ?timestamp_path}
+  , {allowable_downtime, ?allowable_downtime}
+  ].
+
 %%%_* Tests ============================================================
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
-mk_id_test() ->
+id_test() ->
   Ts    = now_in_ms(),
   Mac   = erlang:list_to_binary(lists:seq(1, 6)),
   Seqno = 0,

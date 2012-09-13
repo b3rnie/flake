@@ -20,7 +20,7 @@
 -behaviour(gen_server).
 
 %%%_* Exports ==========================================================
--export([ start_link/1
+-export([ start_link/0
         , stop/0
         , id/0
         ]).
@@ -33,6 +33,9 @@
         , code_change/3
         ]).
 
+%%%_* Includes =========================================================
+-include_lib("flake/include/flake.hrl").
+
 %%%_* Code =============================================================
 %%%_ * Types -----------------------------------------------------------
 -record(s, { interval          = undefined              :: integer()
@@ -43,19 +46,19 @@
            }).
 
 %%%_ * API -------------------------------------------------------------
-start_link(Args) ->
-  gen_server:start_link({local, ?MODULE}, ?MODULE, Args, []).
+start_link() ->
+  gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 stop() ->
   gen_server:cast(?MODULE, stop).
 
-%% @doc generate a new snowflake id
-id() -> gen_server:call(?MODULE, get).
+id() ->
+  gen_server:call(?MODULE, get).
 
 %%%_ * gen_server callbacks --------------------------------------------
-init(_Args) ->
-  {ok, Interface} = application:get_env(flake, interface),
-  {ok, Interval}  = application:get_env(flake, interval),
+init([]) ->
+  Interface = flake_util:get_env(interface, ?interface),
+  Interval  = flake_util:get_env(interval,  ?interval),
   case flake_util:get_mac_addr(Interface) of
     {ok, MacAddr} ->
       {ok, Ts} = flake_time_server:subscribe(),
@@ -123,7 +126,6 @@ next(OldTs, NewTs, _Seqno)
 -include_lib("eunit/include/eunit.hrl").
 
 next_test() ->
-  flake_test:test_init(),
   Ts0 = flake_util:now_in_ms(),
   Ts1 = Ts0 + 1,
   {ok, {Ts0, 1}} = next(Ts0, Ts0, 0),
@@ -133,47 +135,45 @@ next_test() ->
   {error, clock_running_backwards} = next(Ts1, Ts0, 0),
   {error, clock_running_backwards} = next(Ts1, Ts0, 1),
   {error, out_of_seqno}            = next(Ts1, Ts1, 16#FFFF),
-  flake_test:test_end().
+  ok.
 
 non_existing_mac_addr_test() ->
-  flake_test:test_init(),
-  erlang:process_flag(trap_exit, true),
-  {ok, Interface} = application:get_env(flake, interface),
-  application:set_env(flake, interface, dummy),
-  {error, interface_not_found} = flake_server:start_link([]),
-  application:set_env(flake, interface, Interface),
-  flake_test:test_end().
+  F = fun() ->
+          erlang:process_flag(trap_exit, true),
+          {error, interface_not_found} = flake_server:start_link()
+      end,
+  flake_test:clean_env([{interface, dummy}], F).
 
 %% test that flake_server stops giving out id's
 %% after flake_time_server dies
 time_server_died_test() ->
-  flake_test:test_init(),
-  erlang:process_flag(trap_exit, true),
-  {ok, Interval} = application:get_env(flake, interval),
-  {ok, _} = flake_time_server:start_link([]),
-  {ok, _} = flake_server:start_link([]),
-  {ok, _Bin1} = flake:id_bin(),
-  exit(whereis(flake_time_server), die),
-  {ok, _Bin2} = flake:id_bin(),
-  timer:sleep(Interval),
-  {ok, _Bin3} = flake:id_bin(),
-  timer:sleep(Interval+1),
-  {error, clock_advanced} = flake:id_bin(),
-  {error, clock_advanced} = flake:id_bin(),
-  exit(whereis(flake_server), die),
-  flake_test:until_unregistered(flake_server),
-  flake_test:test_end().
+  F = fun() ->
+          erlang:process_flag(trap_exit, true),
+          {ok, Interval} = application:get_env(flake, interval),
+          {ok, _} = flake_time_server:start_link(),
+          {ok, _} = flake_server:start_link(),
+          {ok, _Bin1} = flake:id_bin(),
+          exit(whereis(flake_time_server), die),
+          {ok, _Bin2} = flake:id_bin(),
+          timer:sleep(Interval),
+          {ok, _Bin3} = flake:id_bin(),
+          timer:sleep(Interval+1),
+          {error, clock_advanced} = flake:id_bin(),
+          {error, clock_advanced} = flake:id_bin(),
+          exit(whereis(flake_server), die)
+      end,
+  flake_test:clean_env(flake_util:default_env(), F).
 
 clock_backwards_test() ->
-  flake_test:test_init(),
-  erlang:process_flag(trap_exit, true),
-  {ok, _} = flake_time_server:start_link([]),
-  {ok, _} = flake_server:start_link([]),
-  whereis(flake_server) ! {ts, flake_util:now_in_ms() - 5000},
-  flake_test:until_unregistered(flake_server),
-  flake_time_server:stop(),
-  flake_test:until_unregistered(flake_time_server),
-  flake_test:test_end().
+  F = fun() ->
+          erlang:process_flag(trap_exit, true),
+          {ok, _} = flake_time_server:start_link(),
+          {ok, _} = flake_server:start_link(),
+          whereis(flake_server) ! {ts, flake_util:now_in_ms() - 5000},
+          flake_time_server:stop(),
+          receive {'EXIT', Pid, clock_running_backwards} -> ok end
+      end,
+  flake_test:clean_env(flake_util:default_env(), F).
 
 -else.
 -endif.

@@ -113,8 +113,8 @@ default_env() ->
   ].
 
 %%%_* Tests ============================================================
--ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-ifdef(TEST).
 
 id_test() ->
   Ts    = now_in_ms(),

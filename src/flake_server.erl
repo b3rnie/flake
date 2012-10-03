@@ -122,8 +122,8 @@ next(OldTs, NewTs, _Seqno)
   when OldTs > NewTs       -> {error, clock_running_backwards}.
 
 %%%_* Tests ============================================================
--ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-ifdef(TEST).
 
 next_test() ->
   Ts0 = flake_util:now_in_ms(),

@@ -48,8 +48,8 @@ id_int() ->
   end.
 
 %%%_* Tests ============================================================
--ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+-ifdef(TEST).
 
 types_test() ->
   F = fun() ->

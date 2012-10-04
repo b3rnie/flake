@@ -35,6 +35,7 @@
 
 %%%_* Includes =========================================================
 -include_lib("flake/include/flake.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 %%%_* Code =============================================================
 %%%_ * Types -----------------------------------------------------------
@@ -122,8 +123,7 @@ next(OldTs, NewTs, _Seqno)
   when OldTs > NewTs       -> {error, clock_running_backwards}.
 
 %%%_* Tests ============================================================
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
+-ifdef(EUNIT).
 
 next_test() ->
   Ts0 = flake_util:now_in_ms(),

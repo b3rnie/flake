@@ -30,6 +30,7 @@
 
 %%%_* Includes =========================================================
 -include_lib("flake/include/flake.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 %%%_* Code =============================================================
 %%%_ * API -------------------------------------------------------------
@@ -113,8 +114,7 @@ default_env() ->
   ].
 
 %%%_* Tests ============================================================
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
+-ifdef(EUNIT).
 
 id_test() ->
   Ts    = now_in_ms(),

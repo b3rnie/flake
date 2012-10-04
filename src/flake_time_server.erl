@@ -27,6 +27,7 @@
 
 %%%_* Includes =========================================================
 -include_lib("flake/include/flake.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 %%%_* Code =============================================================
 %%%_ * Types -----------------------------------------------------------
@@ -153,8 +154,7 @@ notify_subscribers(Ts, Subs) ->
   lists:foreach(fun({Pid, _Ref}) -> Pid ! {ts, Ts} end, Subs).
 
 %%%_* Tests ============================================================
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
+-ifdef(EUNIT).
 
 %% start and fail with timestamp in the future
 clock_backwards_test() ->

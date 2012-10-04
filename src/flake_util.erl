@@ -114,7 +114,7 @@ default_env() ->
   ].
 
 %%%_* Tests ============================================================
--ifdef(EUNIT).
+-ifdef(TEST).
 
 id_test() ->
   Ts    = now_in_ms(),

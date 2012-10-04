@@ -4,6 +4,7 @@ ebin/
 .eunit/
 *.dump
 deps/
+doc/
 rel/flake/
 .DS_Store
 
